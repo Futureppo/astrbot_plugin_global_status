@@ -13,7 +13,15 @@ from pathlib import Path
 from urllib.parse import urlparse
 from xml.etree import ElementTree
 
-from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from PIL import (
+    Image,
+    ImageChops,
+    ImageColor,
+    ImageDraw,
+    ImageEnhance,
+    ImageFilter,
+    ImageFont,
+)
 
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
@@ -226,6 +234,8 @@ VENDOR_COLORS = {
     "minimax": "#E2167E",
     "xai": "#111111",
     "deepseek": "#4D6BFE",
+    "cursor": "#111111",
+    "cerebras": "#F15A29",
     "aws": "#E99024",
     "azure": "#1689D4",
     "github": "#64748B",

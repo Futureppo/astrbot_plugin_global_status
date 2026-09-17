@@ -154,6 +154,16 @@
         "type": "bool",
         "default": true
       },
+      "cursor": {
+        "description": "Cursor",
+        "type": "bool",
+        "default": true
+      },
+      "cerebras": {
+        "description": "Cerebras",
+        "type": "bool",
+        "default": true
+      },
       "aws": {
         "description": "Amazon Web Services",
         "type": "bool",

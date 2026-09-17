@@ -22,10 +22,11 @@
 
 - OpenAI、Claude / Anthropic、Groq、Cohere、Moonshot AI / Kimi、MiniMax、xAI、DeepSeek
 - Google Vertex AI / Gemini
+- Cursor、Cerebras
 - Amazon Web Services、Microsoft Azure
 - GitHub、Cloudflare
 
-OpenAI、Claude、Groq、Cohere、Moonshot AI、MiniMax、GitHub 和 Cloudflare 使用 Statuspage JSON；Google 使用 Google Cloud 事件 JSON；xAI、DeepSeek、AWS 和 Azure 使用官方 RSS/Atom Feed。DeepSeek 从官方状态页对应的 `deepseek.statuspage.io/history.atom` 订阅事件，但图片链接始终指向 `https://status.deepseek.com/`。还可以在插件配置中添加其他兼容 Statuspage JSON 的状态页。
+OpenAI、Claude、Cursor、Cerebras、Groq、Cohere、Moonshot AI、MiniMax、GitHub 和 Cloudflare 使用 Statuspage JSON；Google 使用 Google Cloud 事件 JSON；xAI、DeepSeek、AWS 和 Azure 使用官方 RSS/Atom Feed。DeepSeek 从官方状态页对应的 `deepseek.statuspage.io/history.atom` 订阅事件，但图片链接始终指向 `https://status.deepseek.com/`。还可以在插件配置中添加其他兼容 Statuspage JSON 的状态页。
 
 ## 配置
 
