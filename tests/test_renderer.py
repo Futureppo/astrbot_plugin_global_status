@@ -82,6 +82,32 @@ def test_builtin_sources_use_dedicated_vendor_icons():
     ).tobytes()
 
 
+def test_overview_sorts_vendors_case_insensitively_without_mutating_input(monkeypatch):
+    vendors = [
+        ("xai", "xAI"),
+        ("cohere", "cohere"),
+        ("vercel", "Vercel"),
+        ("aws", "Amazon Web Services"),
+    ]
+    results = [
+        SourceResult(SourceSpec(key, name, "statuspage", "", ""), True)
+        for key, name in vendors
+    ]
+    rendered = []
+
+    def capture_vendor_icon(source_id):
+        rendered.append(source_id)
+        return _vendor_icon(source_id)
+
+    monkeypatch.setattr(
+        "data.plugins.astrbot_plugin_global_status.renderer._vendor_icon",
+        capture_vendor_icon,
+    )
+    render_overview(results)
+    assert rendered == ["aws", "cohere", "vercel", "xai"]
+    assert [result.spec.source_id for result in results] == [key for key, _ in vendors]
+
+
 def test_new_vendor_icons_render_in_all_themes():
     source_ids = {"vercel", "fireworks", "novita", "openrouter", "gemini_developer"}
     results = [

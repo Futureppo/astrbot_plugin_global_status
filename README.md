@@ -14,7 +14,7 @@
 
 [![纸质公报双语异常告警卡](assets/screenshots/alert-paper-bilingual.png)](assets/screenshots/alert-paper-bilingual.png)
 
-### 全部厂商状态总览
+### 全部厂商状态总览（A–Z）
 
 [![纸质公报双语厂商状态总览](assets/screenshots/overview-paper-bilingual.png)](assets/screenshots/overview-paper-bilingual.png)
 

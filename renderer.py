@@ -1558,6 +1558,7 @@ def render_overview(
     translations = translations or {}
     generated_at = generated_at or datetime.now().astimezone()
     theme = CARD_THEMES[normalize_card_theme(card_theme)]
+    results = sorted(results, key=lambda result: result.spec.name.casefold())
     rows: list[dict[str, object]] = []
     for result in results:
         primary_lines: list[str] = []
