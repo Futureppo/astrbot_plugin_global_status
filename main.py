@@ -13,6 +13,14 @@ from astrbot.api import AstrBotConfig, logger, star
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.message_components import Image, Plain
 
+from .monitor_state import (
+    cleanup_resolved,
+    delivery_fingerprint,
+    mark_health_delivered,
+    plan_health_notices,
+    presentation_result,
+    reconcile_source,
+ )
 from .renderer import build_alert_fallback, render_alert_card, render_overview
 from .sources import (
     Issue,
@@ -49,6 +57,7 @@ class GlobalStatusMonitor(star.Star):
             "sources": {},
             "deliveries": {},
             "initialized_sources": [],
+            "health": {},
         }
 
     async def initialize(self) -> None:
@@ -172,6 +181,15 @@ class GlobalStatusMonitor(star.Star):
             )
             return datetime.now().astimezone()
 
+    def _bounded_int(self, key: str, default: int, minimum: int, maximum: int) -> int:
+        try:
+            return max(minimum, min(maximum, int(self.config.get(key, default))))
+        except (TypeError, ValueError):
+            return default
+
+    def _history_hours(self) -> int:
+        return self._bounded_int("history_lookback_hours", 24, 0, 168)
+
     async def _fetch_sources(self) -> list[SourceResult]:
         """Fetch all enabled sources under a lock shared with the query command."""
         if self._session is None or self._session.closed:
@@ -182,12 +200,13 @@ class GlobalStatusMonitor(star.Star):
                 self._session,
                 specs,
                 bool(self.config.get("notify_maintenance", False)),
+                self._history_hours(),
             )
-            self._last_results = results
+            self._last_results = [presentation_result(result, self._state) for result in results]
             for result in results:
-                if not result.success:
+                if not result.success or not result.complete:
                     logger.warning(
-                        "Status source %s failed: %s",
+                        "Status source %s incomplete: %s",
                         result.spec.name,
                         result.error,
                     )
@@ -341,123 +360,34 @@ class GlobalStatusMonitor(star.Star):
         return targets
 
     def _prune_disabled_sources(self, enabled_source_ids: set[str]) -> None:
-        sources_state = self._state["sources"]
-        disabled = set(sources_state) - enabled_source_ids
+        health = self._state.setdefault("health", {})
+        disabled = (set(self._state["sources"]) | set(health)) - enabled_source_ids
         for source_id in disabled:
-            sources_state.pop(source_id, None)
-        if not disabled:
-            return
+            self._state["sources"].pop(source_id, None)
+            health.pop(source_id, None)
+        self._state["initialized_sources"] = [
+            source_id for source_id in self._state.get("initialized_sources", [])
+            if source_id in enabled_source_ids
+        ]
         for delivered in self._state["deliveries"].values():
-            if not isinstance(delivered, dict):
-                continue
             for issue_key in list(delivered):
                 if issue_key.split(":", 1)[0] in disabled:
                     delivered.pop(issue_key, None)
 
     def _prune_removed_groups(self, groups: list[str]) -> None:
         allowed = set(groups)
-        deliveries = self._state["deliveries"]
-        for target_key in list(deliveries):
-            group_id = target_key.rsplit("|", 1)[-1]
-            if group_id not in allowed:
-                deliveries.pop(target_key, None)
+        ledgers = [self._state["deliveries"]]
+        ledgers.extend(x.get("deliveries", {}) for x in self._state.get("health", {}).values())
+        for deliveries in ledgers:
+            for target_key in list(deliveries):
+                if target_key.rsplit("|", 1)[-1] not in allowed:
+                    deliveries.pop(target_key, None)
 
     def _reconcile_source(
-        self,
-        result: SourceResult,
-        targets: dict[str, str],
+        self, result: SourceResult, targets: dict[str, str],
     ) -> dict[str, list[tuple[str, Issue]]]:
-        """Reconcile one successful source result with persisted delivery state.
-
-        Args:
-            result: Successfully parsed current source state.
-            targets: Target keys mapped to unified message origins.
-
-        Returns:
-            Per-target alert events that still need delivery.
-        """
-        sources_state = self._state["sources"]
-        source_state = sources_state.setdefault(
-            result.spec.source_id,
-            {"issues": {}, "missing_counts": {}, "recoveries": {}},
-        )
-        previous_raw = source_state.get("issues", {})
-        previous = {
-            issue_id: Issue.from_dict(value)
-            for issue_id, value in previous_raw.items()
-            if isinstance(value, dict)
-        }
-        missing_counts = source_state.get("missing_counts", {})
-        if not isinstance(missing_counts, dict):
-            missing_counts = {}
-        recoveries_raw = source_state.get("recoveries", {})
-        if not isinstance(recoveries_raw, dict):
-            recoveries_raw = {}
-        recoveries = {
-            issue_id: Issue.from_dict(value)
-            for issue_id, value in recoveries_raw.items()
-            if isinstance(value, dict)
-        }
-
-        current = dict(result.issues)
-        for issue_id in current:
-            missing_counts.pop(issue_id, None)
-            recoveries.pop(issue_id, None)
-
-        for issue_id, old_issue in previous.items():
-            if issue_id in current:
-                continue
-            explicitly_resolved = issue_id in result.resolved_issue_ids
-            if result.spec.kind == "rss" and not explicitly_resolved:
-                missing_count = int(missing_counts.get(issue_id, 0)) + 1
-                missing_counts[issue_id] = missing_count
-                if missing_count < 2:
-                    current[issue_id] = old_issue
-                    continue
-            missing_counts.pop(issue_id, None)
-            recoveries[issue_id] = old_issue
-
-        source_state["issues"] = {
-            issue_id: issue.to_dict() for issue_id, issue in current.items()
-        }
-        source_state["missing_counts"] = missing_counts
-        source_state["recoveries"] = {
-            issue_id: issue.to_dict() for issue_id, issue in recoveries.items()
-        }
-
-        deliveries = self._state["deliveries"]
-        pending: dict[str, list[tuple[str, Issue]]] = {}
-        for target_key in targets:
-            delivered = deliveries.setdefault(target_key, {})
-            if not isinstance(delivered, dict):
-                delivered = {}
-                deliveries[target_key] = delivered
-            events: list[tuple[str, Issue]] = []
-            for issue_id, issue in current.items():
-                issue_key = issue.key
-                delivered_fingerprint = delivered.get(issue_key)
-                if delivered_fingerprint == issue.fingerprint:
-                    continue
-                if issue_id not in previous:
-                    stage = "new"
-                elif delivered_fingerprint is None:
-                    stage = "current"
-                else:
-                    stage = "update"
-                events.append((stage, issue))
-
-            for issue in recoveries.values():
-                issue_key = issue.key
-                recovery_fingerprint = f"recovered:{issue.fingerprint}"
-                delivered_fingerprint = delivered.get(issue_key)
-                if delivered_fingerprint is None:
-                    delivered[issue_key] = recovery_fingerprint
-                    continue
-                if delivered_fingerprint != recovery_fingerprint:
-                    events.append(("recovered", issue))
-            if events:
-                pending[target_key] = events
-        return pending
+        """Reconcile active incidents and bounded catch-up without guessing recoveries."""
+        return reconcile_source(self._state, result, targets, self._history_hours())
 
     async def _send_events(
         self,
@@ -523,11 +453,7 @@ class GlobalStatusMonitor(star.Star):
     ) -> None:
         delivered = self._state["deliveries"].setdefault(target_key, {})
         for stage, issue in events:
-            delivered[issue.key] = (
-                f"recovered:{issue.fingerprint}"
-                if stage == "recovered"
-                else issue.fingerprint
-            )
+            delivered[issue.key] = delivery_fingerprint(stage, issue)
 
     def _cleanup_recoveries(
         self,
@@ -535,27 +461,7 @@ class GlobalStatusMonitor(star.Star):
         target_keys: set[str],
         has_configured_groups: bool,
     ) -> None:
-        source_state = self._state["sources"].get(source_id, {})
-        recoveries_raw = source_state.get("recoveries", {})
-        if not isinstance(recoveries_raw, dict):
-            return
-        if has_configured_groups and not target_keys:
-            return
-        deliveries = self._state["deliveries"]
-        for issue_id, value in list(recoveries_raw.items()):
-            if not isinstance(value, dict):
-                recoveries_raw.pop(issue_id, None)
-                continue
-            issue = Issue.from_dict(value)
-            recovery_fingerprint = f"recovered:{issue.fingerprint}"
-            if all(
-                deliveries.get(target_key, {}).get(issue.key) == recovery_fingerprint
-                for target_key in target_keys
-            ):
-                recoveries_raw.pop(issue_id, None)
-                for delivered in deliveries.values():
-                    if isinstance(delivered, dict):
-                        delivered.pop(issue.key, None)
+        cleanup_resolved(self._state, source_id, target_keys, has_configured_groups)
 
     async def _run_cycle(self) -> None:
         results = await self._fetch_sources()
@@ -612,6 +518,20 @@ class GlobalStatusMonitor(star.Star):
                 set(targets),
                 bool(groups),
             )
+        health_pending: dict[str, list[tuple[str, Issue]]] = {}
+        for result in results:
+            notices = plan_health_notices(
+                self._state, result, targets,
+                bool(self.config.get("notify_source_failures", True)),
+                self._bounded_int("source_failure_threshold", 3, 1, 100),
+                self._bounded_int("source_failure_cooldown_seconds", 3600, 60, 86400),
+            )
+            for target_key, events in notices.items():
+                health_pending.setdefault(target_key, []).extend(events)
+        for target_key, events in health_pending.items():
+            if await self._send_events(targets[target_key], "Status monitor", events, {}):
+                mark_health_delivered(self._state, target_key, events)
+        self._last_results = [presentation_result(result, self._state) for result in results]
         await self.put_kv_data(STATE_KEY, self._state)
         if self._translator.dirty:
             await self.put_kv_data(
@@ -627,7 +547,8 @@ class GlobalStatusMonitor(star.Star):
     async def vendor_status(self, event: AstrMessageEvent):
         """Query all enabled vendor sources and return a current status image."""
         try:
-            results = await self._fetch_sources()
+            results = [presentation_result(result, self._state)
+                       for result in await self._fetch_sources()]
             issues = [
                 issue
                 for result in results

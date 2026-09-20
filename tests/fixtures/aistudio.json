@@ -1,0 +1,24 @@
+[[[
+  [
+    "AIStudio-billing-issues-20260916",
+    "Issues with AI Studio Billing and payment settings",
+    1,
+    [
+      [1, "2026-09-16 08:13", ["1789571580"], "We are experiencing issues with the Billing page in AI Studio. Users may see errors when viewing or managing payment details. Investigation is underway."],
+      [4, "2026-09-16 11:02", ["1789581720"], "Issue has been resolved."]
+    ],
+    3,
+    [3]
+  ],
+  [
+    "GeminiAPI-batch-delays-20260914",
+    "Gemini API Batch requests not finishing in 24 hours",
+    1,
+    [
+      [1, "2026-09-14 00:00", ["1789369200"], "We are experiencing issues where Gemini API batch requests are not finishing within 24 hours. Investigation is underway."],
+      [4, "2026-09-15 21:11", ["1789531860"], "Batch processing has returned to normal, but Batches scheduled between 2026-09-14 12:14:48 PDT (Mon) and 2026-09-15 21:11:46 PDT (Tue) could have been dropped. Customers will not be charged for those, nor their quota impacted."]
+    ],
+    1,
+    [1]
+  ]
+]]]

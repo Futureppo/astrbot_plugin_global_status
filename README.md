@@ -20,13 +20,30 @@
 
 ## 内置来源
 
-- OpenAI、Claude / Anthropic、Groq、Cohere、Moonshot AI / Kimi、MiniMax、xAI、DeepSeek
-- Google Vertex AI / Gemini
-- Cursor、Cerebras
-- Amazon Web Services、Microsoft Azure
-- GitHub、Cloudflare
+| 来源 | 官方状态页 |
+| --- | --- |
+| OpenAI | [status.openai.com](https://status.openai.com/) |
+| OpenRouter | [status.openrouter.ai](https://status.openrouter.ai/) |
+| Claude / Anthropic | [status.claude.com](https://status.claude.com/) |
+| Google Vertex AI / Gemini | [status.cloud.google.com](https://status.cloud.google.com/) |
+| Gemini Developer API / Google AI Studio | [aistudio.google.com/status](https://aistudio.google.com/status) |
+| Groq | [groqstatus.com](https://groqstatus.com/) |
+| Cohere | [status.cohere.com](https://status.cohere.com/) |
+| Moonshot AI / Kimi | [status.moonshot.cn](https://status.moonshot.cn/) |
+| MiniMax | [status.minimaxi.com](https://status.minimaxi.com/) |
+| Fireworks AI | [status.fireworks.ai](https://status.fireworks.ai/) |
+| Novita AI | [status.novita.ai](https://status.novita.ai/) |
+| xAI | [status.x.ai](https://status.x.ai/) |
+| DeepSeek | [status.deepseek.com](https://status.deepseek.com/) |
+| Cursor | [status.cursor.com](https://status.cursor.com/) |
+| Cerebras | [status.cerebras.ai](https://status.cerebras.ai/) |
+| Amazon Web Services | [health.aws.amazon.com](https://health.aws.amazon.com/health/status) |
+| Microsoft Azure | [azure.status.microsoft](https://azure.status.microsoft/en-us/status) |
+| GitHub | [githubstatus.com](https://www.githubstatus.com/) |
+| Vercel | [vercel-status.com](https://www.vercel-status.com/) |
+| Cloudflare | [cloudflarestatus.com](https://www.cloudflarestatus.com/) |
 
-OpenAI、Claude、Cursor、Cerebras、Groq、Cohere、Moonshot AI、MiniMax、GitHub 和 Cloudflare 使用 Statuspage JSON；Google 使用 Google Cloud 事件 JSON；xAI、DeepSeek、AWS 和 Azure 使用官方 RSS/Atom Feed。DeepSeek 从官方状态页对应的 `deepseek.statuspage.io/history.atom` 订阅事件，但图片链接始终指向 `https://status.deepseek.com/`。还可以在插件配置中添加其他兼容 Statuspage JSON 的状态页。
+各来源使用官方公开状态接口：Statuspage JSON、Google Cloud / AI Studio、DeepSeek FlashDuty、Novita Better Stack、OpenRouter Datadog 或 RSS/Atom。支持添加自定义 Statuspage 来源；无需用户 API 密钥、登录态或浏览器。
 
 ## 配置
 
@@ -108,9 +125,11 @@ OpenAI、Claude、Cursor、Cerebras、Groq、Cohere、Moonshot AI、MiniMax、Gi
 
 - 默认在首次成功检查时立即报告当时已经存在的异常；可通过 `notify_existing_on_first_startup` 关闭首次存量告警。
 - 相同状态不会重复发送；严重度、受影响服务或官方说明变化时会发送更新。
-- JSON 来源明确恢复后立即通知；RSS/Atom Feed 明确标记恢复时立即通知，未明确标记的事件连续两轮成功检查均消失后通知恢复。
-- 单个来源请求失败不会被误判为恢复，也不会额外向群内发送“监控失败”告警。
-- 某个群发送失败时，下轮只重试该群。
+- 事故需明确恢复才发恢复通知；从 Feed 或历史列表消失不等于恢复。未确认事件保留并显示数据不完整。
+- 摘要或历史请求部分失败时保留可用故障信息；结构失配、空错误页不会被当作正常。
+- `history_lookback_hours` 默认 24，范围 0–168，0 关闭补报；首次或来源迁移只建立历史基线，不补发旧记录。补报依赖官方保留的历史和明确恢复时间，每源最多保留 200 条待补报、2000 条近期去重记录。
+- `notify_source_failures` 默认开启；连续 `source_failure_threshold` 次（默认 3）采集不完整会提醒，`source_failure_cooldown_seconds` 默认 3600。采集恢复另行通知，不代表厂商事故恢复。
+- 告警与采集提醒按目标分别去重、失败重试；最后成功采集时间和错误类型持久化，查询总览不改变投递状态。
 
 ## 图标
 

@@ -44,6 +44,28 @@
     "type": "bool",
     "default": false
   },
+  "history_lookback_hours": {
+    "description": "已恢复事件补报窗口（小时）",
+    "type": "int",
+    "default": 24,
+    "hint": "范围 0–168，0 关闭补报；首次采集只建立历史基线。"
+  },
+  "notify_source_failures": {
+    "description": "通知状态源采集异常及恢复",
+    "type": "bool",
+    "default": true
+  },
+  "source_failure_threshold": {
+    "description": "连续采集异常通知阈值",
+    "type": "int",
+    "default": 3
+  },
+  "source_failure_cooldown_seconds": {
+    "description": "采集异常提醒间隔（秒）",
+    "type": "int",
+    "default": 3600,
+    "hint": "同一来源按接收目标限频；只有发送成功才计入间隔。"
+  },
   "notify_existing_on_first_startup": {
     "description": "首次启动时推送已有异常",
     "type": "bool",
@@ -114,8 +136,18 @@
         "type": "bool",
         "default": true
       },
+      "openrouter": {
+        "description": "OpenRouter",
+        "type": "bool",
+        "default": true
+      },
       "claude": {
         "description": "Claude / Anthropic",
+        "type": "bool",
+        "default": true
+      },
+      "gemini_developer": {
+        "description": "Gemini Developer API / Google AI Studio（独立来源）",
         "type": "bool",
         "default": true
       },
@@ -141,6 +173,16 @@
       },
       "minimax": {
         "description": "MiniMax",
+        "type": "bool",
+        "default": true
+      },
+      "fireworks": {
+        "description": "Fireworks AI",
+        "type": "bool",
+        "default": true
+      },
+      "novita": {
+        "description": "Novita AI",
         "type": "bool",
         "default": true
       },
@@ -176,6 +218,11 @@
       },
       "github": {
         "description": "GitHub",
+        "type": "bool",
+        "default": true
+      },
+      "vercel": {
+        "description": "Vercel",
         "type": "bool",
         "default": true
       },

@@ -1,0 +1,21 @@
+{
+  "data": {
+    "id": "179971",
+    "type": "status_page",
+    "attributes": {"company_name": "Novita AI", "custom_domain": "status.novita.ai", "aggregate_state": "operational", "updated_at": "2026-09-20T12:17:54.876Z"},
+    "relationships": {
+      "resources": {"data": [{"id": "8980521", "type": "status_page_resource"}]},
+      "status_reports": {"data": [{"id": "1034267", "type": "status_report"}]}
+    }
+  },
+  "included": [
+    {"id": "8980521", "type": "status_page_resource", "attributes": {"public_name": "MiniMax M3", "status": "operational", "availability": 0.999598}},
+    {"id": "5657886", "type": "status_update", "attributes": {"message": "MiniMax M3 went down.", "published_at": "2026-08-26T13:18:44.365Z", "affected_resources": [{"status_page_resource_id": "8980521", "status": "downtime"}]}},
+    {"id": "5657979", "type": "status_update", "attributes": {"message": "MiniMax M3 recovered.", "published_at": "2026-08-26T13:43:36.854Z", "affected_resources": [{"status_page_resource_id": "8980521", "status": "resolved"}]}},
+    {
+      "id": "1034267", "type": "status_report",
+      "attributes": {"title": "MiniMax M3 is down", "report_type": "automatic", "starts_at": "2026-08-26T13:18:44.365Z", "ends_at": null, "affected_resources": [{"status_page_resource_id": "8980521", "status": "resolved"}], "aggregate_state": "resolved"},
+      "relationships": {"status_updates": {"data": [{"id": "5657886", "type": "status_update"}, {"id": "5657979", "type": "status_update"}]}}
+    }
+  ]
+}

@@ -147,7 +147,7 @@ def test_reconcile_initial_update_dedup_and_recovery():
     assert plugin._state["sources"]["vendor"]["recoveries"] == {}
 
 
-def test_rss_requires_two_successful_absences_before_recovery():
+def test_rss_absence_never_implies_recovery():
     plugin = _plugin()
     targets = plugin._targets(["100"])
     issue = _issue()
@@ -160,7 +160,9 @@ def test_rss_requires_two_successful_absences_before_recovery():
     assert issue.issue_id in plugin._state["sources"]["vendor"]["issues"]
 
     pending = plugin._reconcile_source(missing, targets)
-    assert pending["1|100"][0][0] == "recovered"
+    assert pending == {}
+    assert issue.issue_id in plugin._state["sources"]["vendor"]["issues"]
+    assert not missing.complete
 
 
 @pytest.mark.asyncio
@@ -371,7 +373,10 @@ async def test_failed_source_does_not_clear_previous_issue(monkeypatch):
 
     await plugin._run_cycle()
 
-    assert plugin._state == before
+    assert plugin._state["sources"] == before["sources"]
+    assert plugin._state["deliveries"] == before["deliveries"]
+    assert plugin._state["health"]["vendor"]["consecutive_failures"] == 1
+    assert not plugin.context.sent
 
 
 @pytest.mark.asyncio

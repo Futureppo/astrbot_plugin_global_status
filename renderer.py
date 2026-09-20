@@ -228,6 +228,10 @@ VENDOR_COLORS = {
     "openai": "#10A37F",
     "claude": "#D97757",
     "google_vertex_gemini": "#7C8CF8",
+    "gemini_developer": "#7C8CF8",
+    "openrouter": "#64748B",
+    "fireworks": "#C77821",
+    "novita": "#7657CE",
     "groq": "#F55036",
     "cohere": "#2D8C78",
     "moonshot": "#111111",
@@ -239,6 +243,7 @@ VENDOR_COLORS = {
     "aws": "#E99024",
     "azure": "#1689D4",
     "github": "#64748B",
+    "vercel": "#64748B",
     "cloudflare": "#F48120",
 }
 
@@ -248,18 +253,27 @@ STAGE_LABELS = {
         "current": "当前异常",
         "update": "状态更新",
         "recovered": "已恢复",
+        "missed": "事件补报（已恢复）",
+        "source_unavailable": "采集异常",
+        "source_recovered": "采集恢复",
     },
     "en-US": {
         "new": "New incident",
         "current": "Active incident",
         "update": "Status update",
         "recovered": "Recovered",
+        "missed": "Recovered incident (catch-up)",
+        "source_unavailable": "Source unavailable",
+        "source_recovered": "Source restored",
     },
     "bilingual": {
         "new": "新异常  /  New incident",
         "current": "当前异常  /  Active incident",
         "update": "状态更新  /  Status update",
         "recovered": "已恢复  /  Recovered",
+        "missed": "事件补报（已恢复） / Catch-up",
+        "source_unavailable": "采集异常 / Source unavailable",
+        "source_recovered": "采集恢复 / Source restored",
     },
 }
 
@@ -1155,7 +1169,7 @@ def _localized_pair(
 
 
 def _stage_icon(stage: str) -> str:
-    if stage == "recovered":
+    if stage in {"recovered", "source_recovered"}:
         return "check"
     if stage == "update":
         return "update"
@@ -1173,6 +1187,8 @@ def _status_icon(severity: str) -> str:
 
 
 def _vendor_icon(source_id: str) -> str:
+    if source_id == "gemini_developer":
+        return "google_vertex_gemini"
     return source_id if (ICON_DIR / f"{source_id}.svg").is_file() else "vendor"
 
 
@@ -1340,7 +1356,7 @@ def render_alert_card(
         issue = layout["issue"]
         assert isinstance(issue, Issue)
         block_height = int(layout["height"])
-        severity = "operational" if stage == "recovered" else issue.severity
+        severity = "operational" if stage in {"recovered", "missed"} else issue.severity
         accent = theme.severity_colors.get(severity, theme.severity_colors["warning"])
         _draw_panel(image, (54, y, WIDTH - 54, y + block_height), theme)
         draw = ImageDraw.Draw(image)
@@ -1562,6 +1578,17 @@ def render_overview(
             )
             primary_lines = _wrap_text(primary, _font(21, True), 370, 2)
             original_lines = _wrap_text(original, _font(16), 370, 2)
+        if not result.success or not result.complete:
+            if not primary_lines:
+                primary_lines = _wrap_text(
+                    "Current status cannot be confirmed" if language == "en-US"
+                    else "数据不完整，无法确认当前状态", _font(21, True), 370, 2,
+                )
+            last_success = result.last_success_at or "never"
+            original_lines = _wrap_text(
+                f"Last success: {last_success}" if language == "en-US"
+                else f"最后成功采集：{last_success}", _font(16), 370, 2,
+            )
         row_height = max(
             96,
             68 + len(primary_lines) * 28 + len(original_lines) * 22,
@@ -1737,7 +1764,13 @@ def render_overview(
             fill=theme.muted,
         )
 
-        if result.success:
+        if result.success and not result.complete:
+            subtitle_text = {
+                "zh-CN": "数据不完整，保留未确认事件",
+                "en-US": "Incomplete data; unconfirmed status",
+                "bilingual": "数据不完整 / Incomplete data",
+            }[language]
+        elif result.success:
             if result.issues:
                 subtitle_text = (
                     f"{len(result.issues)} 个活动事件"

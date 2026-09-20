@@ -1,7 +1,7 @@
 name: astrbot_plugin_global_status
 display_name: 全球厂商状态监控
 description: 订阅主流 AI、云与开发平台的官方状态页，向群聊推送图片告警。支持所有具备群聊和主动推送能力的平台适配器，填入 UMO 即可使用。
-version: 1.1.1
+version: 1.2.0
 author: Futureppo
 support_platforms:
   - aiocqhttp
