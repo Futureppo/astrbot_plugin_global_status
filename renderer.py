@@ -227,10 +227,10 @@ VENDOR_COLORS = {
     "openai": "#10A37F",
     "claude": "#D97757",
     "google_vertex_gemini": "#7C8CF8",
-    "gemini_developer": "#7C8CF8",
+    "gemini_developer": "#4285F4",
     "openrouter": "#64748B",
-    "fireworks": "#C77821",
-    "novita": "#7657CE",
+    "fireworks": "#5019C5",
+    "novita": "#23D57C",
     "groq": "#F55036",
     "cohere": "#2D8C78",
     "moonshot": "#111111",
@@ -1186,8 +1186,6 @@ def _status_icon(severity: str) -> str:
 
 
 def _vendor_icon(source_id: str) -> str:
-    if source_id == "gemini_developer":
-        return "google_vertex_gemini"
     return source_id if (ICON_DIR / f"{source_id}.svg").is_file() else "vendor"
 
 
