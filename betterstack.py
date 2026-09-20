@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .sources import SourceResult, SourceSpec, object_list, parse_statuspage, parse_timestamp
+from .sources import (
+    SourceResult,
+    SourceSpec,
+    object_list,
+    parse_statuspage,
+    parse_timestamp,
+)
 
 STATUS_MAP = {
     "operational": "operational",

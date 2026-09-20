@@ -4,8 +4,8 @@ import json
 from types import SimpleNamespace
 
 import pytest
-
 from astrbot.api.message_components import Image
+
 from data.plugins.astrbot_plugin_global_status.main import GlobalStatusMonitor
 from data.plugins.astrbot_plugin_global_status.sources import (
     Issue,

@@ -29,6 +29,7 @@ def reconcile_source(
     previous = _issues(source.get("issues"))
     recoveries = _issues(source.get("recoveries"))
     catchups = _issues(source.get("catchups"))
+    original_catchups = dict(catchups)
     current = dict(result.issues)
     now = parse_timestamp(result.fetched_at)
     cutoff = now - lookback_hours * 3600
@@ -39,7 +40,7 @@ def reconcile_source(
     baseline = parse_timestamp(source.get("history_baseline_at"))
     generation_changed = source.get("history_source") != result.spec.kind
     baseline_ready = bool(baseline) and not generation_changed
-    floor = max(cutoff, baseline)
+    floor = max(cutoff, baseline, parse_timestamp(source.get("history_floor_at")))
 
     def eligible(issue: Issue) -> bool:
         ended = parse_timestamp(issue.resolved_at)
@@ -80,7 +81,20 @@ def reconcile_source(
     catchups = {key: issue for key, issue in catchups.items()
                 if lookback_hours > 0 and parse_timestamp(issue.resolved_at) >= cutoff}
     catchups = dict(sorted(catchups.items(), key=lambda x: parse_timestamp(x[1].resolved_at))[-MAX_CATCHUPS:])
-    source["history_seen"] = dict(sorted(seen.items(), key=lambda x: parse_timestamp(x[1]))[-MAX_HISTORY_RECORDS:])
+    ordered_seen = sorted(seen.items(), key=lambda x: parse_timestamp(x[1]))
+    if len(ordered_seen) > MAX_HISTORY_RECORDS:
+        # Evicted IDs remain outside the catch-up window instead of becoming new again.
+        evicted_until = ordered_seen[-MAX_HISTORY_RECORDS - 1][1]
+        if parse_timestamp(evicted_until) > parse_timestamp(source.get("history_floor_at")):
+            source["history_floor_at"] = evicted_until
+    source["history_seen"] = dict(ordered_seen[-MAX_HISTORY_RECORDS:])
+    for key, issue in original_catchups.items():
+        if key in catchups or key in current or key in recoveries:
+            continue
+        expected = delivery_fingerprint("missed", issue)
+        for delivered in state["deliveries"].values():
+            if delivered.get(issue.key) == expected:
+                delivered.pop(issue.key, None)
     source["issues"] = {key: issue.to_dict() for key, issue in current.items()}
     source["recoveries"] = {key: issue.to_dict() for key, issue in recoveries.items()}
     source["catchups"] = {key: issue.to_dict() for key, issue in catchups.items()}

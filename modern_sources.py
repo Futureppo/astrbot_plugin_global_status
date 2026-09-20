@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 
 from .sources import (
     MAX_RESPONSE_BYTES,
-    SEVERITY_RANK,
     Issue,
     SourceResult,
     SourceSpec,

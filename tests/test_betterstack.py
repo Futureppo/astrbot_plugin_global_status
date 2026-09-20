@@ -1,11 +1,14 @@
-import copy
 import json
 from pathlib import Path
 
 import pytest
 
 from data.plugins.astrbot_plugin_global_status.betterstack import parse_betterstack
-from data.plugins.astrbot_plugin_global_status.sources import BUILTIN_SOURCES, build_source_specs, parse_statuspage
+from data.plugins.astrbot_plugin_global_status.sources import (
+    BUILTIN_SOURCES,
+    build_source_specs,
+    parse_statuspage,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SPEC = next(x for x in BUILTIN_SOURCES if x.source_id == "novita")

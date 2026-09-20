@@ -2,7 +2,10 @@ from dataclasses import replace
 
 import pytest
 
-from data.plugins.astrbot_plugin_global_status.renderer import build_alert_fallback, render_alert_card
+from data.plugins.astrbot_plugin_global_status.renderer import (
+    build_alert_fallback,
+    render_alert_card,
+)
 from data.plugins.astrbot_plugin_global_status.sources import SourceResult
 
 from .test_main import _issue, _plugin, _spec

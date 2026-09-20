@@ -8,7 +8,6 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import aiohttp
-
 from astrbot.api import AstrBotConfig, logger, star
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.message_components import Image, Plain
@@ -20,7 +19,7 @@ from .monitor_state import (
     plan_health_notices,
     presentation_result,
     reconcile_source,
- )
+)
 from .renderer import build_alert_fallback, render_alert_card, render_overview
 from .sources import (
     Issue,
@@ -33,6 +32,8 @@ from .translation import TranslationService, normalize_language
 STATE_KEY = "monitor_state_v1"
 STATE_VERSION = 1
 TRANSLATION_CACHE_KEY = "translation_cache_v1"
+MAX_EVENTS_PER_CARD = 5
+MAX_EVENTS_PER_CYCLE = 20
 
 
 class GlobalStatusMonitor(star.Star):
@@ -463,6 +464,14 @@ class GlobalStatusMonitor(star.Star):
     ) -> None:
         cleanup_resolved(self._state, source_id, target_keys, has_configured_groups)
 
+    @staticmethod
+    def _event_batches(events: list[tuple[str, Issue]]) -> list[list[tuple[str, Issue]]]:
+        """Bound each image and drain large backlogs over subsequent cycles."""
+        return [
+            events[offset:offset + MAX_EVENTS_PER_CARD]
+            for offset in range(0, min(len(events), MAX_EVENTS_PER_CYCLE), MAX_EVENTS_PER_CARD)
+        ]
+
     async def _run_cycle(self) -> None:
         results = await self._fetch_sources()
         successful_results = [result for result in results if result.success]
@@ -495,7 +504,7 @@ class GlobalStatusMonitor(star.Star):
             issue
             for _, pending in reconciled
             for events in pending.values()
-            for _, issue in events
+            for _, issue in events[:MAX_EVENTS_PER_CYCLE]
         ]
         translations = await self._translator.translate_issues(
             changed_issues,
@@ -506,13 +515,12 @@ class GlobalStatusMonitor(star.Star):
 
         for result, pending in reconciled:
             for target_key, events in pending.items():
-                if await self._send_events(
-                    targets[target_key],
-                    result.spec.name,
-                    events,
-                    translations,
-                ):
-                    self._mark_delivered(target_key, events)
+                for batch in self._event_batches(events):
+                    if not await self._send_events(
+                        targets[target_key], result.spec.name, batch, translations,
+                    ):
+                        break
+                    self._mark_delivered(target_key, batch)
             self._cleanup_recoveries(
                 result.spec.source_id,
                 set(targets),
@@ -529,8 +537,10 @@ class GlobalStatusMonitor(star.Star):
             for target_key, events in notices.items():
                 health_pending.setdefault(target_key, []).extend(events)
         for target_key, events in health_pending.items():
-            if await self._send_events(targets[target_key], "Status monitor", events, {}):
-                mark_health_delivered(self._state, target_key, events)
+            for batch in self._event_batches(events):
+                if not await self._send_events(targets[target_key], "Status monitor", batch, {}):
+                    break
+                mark_health_delivered(self._state, target_key, batch)
         self._last_results = [presentation_result(result, self._state) for result in results]
         await self.put_kv_data(STATE_KEY, self._state)
         if self._translator.dirty:

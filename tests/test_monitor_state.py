@@ -11,7 +11,11 @@ from data.plugins.astrbot_plugin_global_status.monitor_state import (
     presentation_result,
     reconcile_source,
 )
-from data.plugins.astrbot_plugin_global_status.sources import Issue, SourceResult, SourceSpec
+from data.plugins.astrbot_plugin_global_status.sources import (
+    Issue,
+    SourceResult,
+    SourceSpec,
+)
 
 SPEC = SourceSpec("vendor", "Vendor", "statuspage", "https://status.test", "https://status.test/")
 TARGETS = {"1|100": "1:GroupMessage:100", "1|200": "1:GroupMessage:200"}

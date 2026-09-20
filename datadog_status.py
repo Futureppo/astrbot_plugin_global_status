@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlparse
 
-from .sources import SourceResult, SourceSpec, object_list, parse_statuspage, parse_timestamp
+from .sources import (
+    SourceResult,
+    SourceSpec,
+    object_list,
+    parse_statuspage,
+    parse_timestamp,
+)
 
 COMPONENT_STATES = {"operational", "maintenance", "degraded", "partial_outage", "major_outage"}
 

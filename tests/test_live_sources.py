@@ -5,7 +5,10 @@ import os
 import aiohttp
 import pytest
 
-from data.plugins.astrbot_plugin_global_status.sources import BUILTIN_SOURCES, fetch_source
+from data.plugins.astrbot_plugin_global_status.sources import (
+    BUILTIN_SOURCES,
+    fetch_source,
+)
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("GLOBAL_STATUS_LIVE") != "1",

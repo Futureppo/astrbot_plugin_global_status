@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from xml.etree import ElementTree
 
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 from PIL import (
     Image,
     ImageChops,
@@ -22,8 +23,6 @@ from PIL import (
     ImageFilter,
     ImageFont,
 )
-
-from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from .sources import Issue, SourceResult
 from .translation import normalize_language
