@@ -198,6 +198,20 @@ BUILTIN_SOURCES: tuple[SourceSpec, ...] = (
         "https://status.deepseek.com/",
     ),
     SourceSpec(
+        "cursor",
+        "Cursor",
+        "statuspage",
+        "https://status.cursor.com",
+        "https://status.cursor.com/",
+    ),
+    SourceSpec(
+        "cerebras",
+        "Cerebras",
+        "statuspage",
+        "https://status.cerebras.ai",
+        "https://status.cerebras.ai/",
+    ),
+    SourceSpec(
         "aws",
         "Amazon Web Services",
         "rss",

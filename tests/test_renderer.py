@@ -61,6 +61,8 @@ def test_svg_icon_assets_rasterize_without_native_dependencies():
         "minimax",
         "xai",
         "deepseek",
+        "cursor",
+        "cerebras",
         "aws",
         "azure",
         "github",
