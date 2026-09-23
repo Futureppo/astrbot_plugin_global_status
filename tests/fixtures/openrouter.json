@@ -1,0 +1,28 @@
+{
+  "id": "3bdfe680-d6e4-4a0b-9c04-c25058c342e0",
+  "name": "OpenRouter",
+  "customDomain": "status.openrouter.ai",
+  "components": [
+    {
+      "id": "62d944d3-1acb-471b-81a0-099b3da0164f", "name": "API - Gateway", "type": "ComponentGroup",
+      "components": [{"id": "bb2402ad-3e98-4c75-9eb5-ca68ca683c5a", "name": "Video (/api/v1/videos)", "status": "operational", "type": "Component"}]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "2a3d415a-1eed-417f-b269-6e308a7f7990",
+      "title": "Degraded video generation API",
+      "currentStatus": "resolved", "resolved": true,
+      "publishedDate": "2026-09-04T18:27:00Z",
+      "resolvedDate": "2026-09-04T21:12:00Z",
+      "lastModifiedAt": "2026-09-11T02:34:01.430225Z",
+      "description": "This incident has been resolved.",
+      "componentsAffected": [{"id": "bb2402ad-3e98-4c75-9eb5-ca68ca683c5a", "name": "Video (/api/v1/videos)", "status": "operational", "type": "Component"}],
+      "timeline": [
+        {"createdAt": "2026-09-11T02:34:01.430225Z", "startedAt": "2026-09-04T21:12:00Z", "description": "This incident has been resolved.", "status": "resolved", "componentsAffected": [{"id": "bb2402ad-3e98-4c75-9eb5-ca68ca683c5a", "name": "Video (/api/v1/videos)", "status": "operational", "type": "Component"}]},
+        {"createdAt": "2026-09-11T02:34:01.430225Z", "startedAt": "2026-09-04T18:27:00Z", "description": "We are investigating degraded availability for our video generation and batch jobs APIs.", "status": "investigating", "componentsAffected": [{"id": "bb2402ad-3e98-4c75-9eb5-ca68ca683c5a", "name": "Video (/api/v1/videos)", "status": "degraded", "type": "Component"}]}
+      ]
+    }
+  ],
+  "maintenances": null
+}

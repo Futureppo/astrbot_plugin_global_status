@@ -1,0 +1,54 @@
+{
+  "active": {
+    "data": {
+      "page": {
+        "page_id": 6410630422455,
+        "name": "DeepSeek",
+        "custom_domain": "status.deepseek.com",
+        "components": [
+          {"component_id": "01KY4MVS8BSBSVW6053QJ37RJE", "name": "DeepSeek V4.1 Flash API服务(API Service)"},
+          {"component_id": "01KY4ND2PNYT9FY5W4ZH80VGJ4", "name": "对话服务(Chatservice)"}
+        ]
+      },
+      "active_changes": []
+    }
+  },
+  "history": {
+    "data": {
+      "items": [
+        {
+          "change_id": 7007335047287,
+          "page_id": 6410630422455,
+          "type": "incident",
+          "title": "DeepSeek 网页/API 性能下降（DeepSeek Web/API Degraded Performance）",
+          "description": "本次问题已解决，服务已恢复。\n\nThe incident has been resolved and service has been restored.",
+          "status": "resolved",
+          "affected_components": [
+            {"component_id": "01KY4MVS8BSBSVW6053QJ37RJE", "name": "DeepSeek V4.1 Flash API服务(API Service)", "status": "operational"},
+            {"component_id": "01KY4ND2PNYT9FY5W4ZH80VGJ4", "name": "对话服务(Chatservice)", "status": "operational"}
+          ],
+          "start_at_seconds": 1789893932,
+          "close_at_seconds": 1789894726,
+          "updates": [
+            {
+              "at_seconds": 1789893932,
+              "status": "monitoring",
+              "description": "已实施修复，正在监控结果。\n\nA fix has been implemented and the results are being monitored.",
+              "component_changes": [
+                {"component_id": "01KY4MVS8BSBSVW6053QJ37RJE", "status": "degraded"}
+              ]
+            },
+            {
+              "at_seconds": 1789894726,
+              "status": "resolved",
+              "description": "本次问题已解决，服务已恢复。\n\nThe incident has been resolved and service has been restored.",
+              "component_changes": [
+                {"component_id": "01KY4MVS8BSBSVW6053QJ37RJE", "status": "operational"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

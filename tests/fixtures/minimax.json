@@ -1,0 +1,20 @@
+{
+  "incidents": [
+    {
+      "id": "mtkn3r6kwk1g",
+      "name": "大语言模型 LLM 错误率升高",
+      "status": "resolved",
+      "created_at": "2026-09-14T09:02:45.667+08:00",
+      "updated_at": "2026-09-14T09:06:45.230+08:00",
+      "resolved_at": "2026-09-14T09:06:45.217+08:00",
+      "impact": "major",
+      "started_at": "2026-09-14T09:02:45.660+08:00",
+      "shortlink": "https://stspg.io/syxhyvmq55zl",
+      "incident_updates": [
+        {"status": "resolved", "body": "该问题已解决。", "created_at": "2026-09-14T09:06:45.217+08:00", "updated_at": "2026-09-14T09:06:45.217+08:00"},
+        {"status": "investigating", "body": "我们正在调查此问题。", "created_at": "2026-09-14T09:02:45.729+08:00", "updated_at": "2026-09-14T09:02:45.729+08:00"}
+      ],
+      "components": [{"id": "vwp8mgy34fck", "name": "大语言模型LLM", "status": "operational"}]
+    }
+  ]
+}

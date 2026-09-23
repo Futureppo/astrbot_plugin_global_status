@@ -1,0 +1,47 @@
+name: Plugin tests
+
+on:
+  push:
+    branches: [main, 'fix/**', 'feat/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          repository: AstrBotDevs/AstrBot
+          ref: ab42c0d9b726d82ad0f9563e04c53a4460c00d61 # v4.28.1
+          path: .astrbot-test
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements.txt
+            .astrbot-test/pyproject.toml
+      - name: Install the target host and plugin dependencies
+        run: |
+          uv sync --directory .astrbot-test --python 3.12 --group dev
+          uv pip install --python .astrbot-test/.venv/bin/python -r requirements.txt
+      - name: Run offline regression tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.astrbot-test
+        run: |
+          mkdir -p data/plugins
+          ln -s "$GITHUB_WORKSPACE" data/plugins/astrbot_plugin_global_status
+          .astrbot-test/.venv/bin/python -m pytest tests/ -q

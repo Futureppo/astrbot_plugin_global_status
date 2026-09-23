@@ -1,0 +1,21 @@
+{
+  "summary": {
+    "status": {"description": "All Systems Operational", "indicator": "none"},
+    "components": [{"id": "01M2JY3585G7CDGZGT5111H7JQ", "name": "GLM 5.3 US", "status": "operational", "updated_at": "2026-09-15T16:55:28Z"}]
+  },
+  "history": {
+    "incidents": [{
+      "id": "01M2X9P4QGG4V22SVWTEACW1D0",
+      "name": "Service Degradation for Kimi K3 Fast",
+      "status": "resolved",
+      "created_at": "2026-09-19T16:58:40Z",
+      "updated_at": "2026-09-19T17:04:04Z",
+      "resolved_at": "2026-09-19T17:04:04Z",
+      "impact": "minor",
+      "incident_updates": [
+        {"body": "We've resolved the incident and the affected service is now operational. ", "created_at": "2026-09-19T17:04:04Z", "status": "resolved", "updated_at": "2026-09-19T17:04:04Z"},
+        {"body": "We are seeing impacted performance for Kimi K3 Fast. We are actively investigating. ", "created_at": "2026-09-19T16:58:40Z", "status": "investigating", "updated_at": "2026-09-19T16:58:40Z"}
+      ]
+    }]
+  }
+}

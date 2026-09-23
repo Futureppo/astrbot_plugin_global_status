@@ -192,8 +192,10 @@ def test_build_source_specs_validates_and_deduplicates_custom_sources():
     by_id = {spec.source_id: spec for spec in specs}
     assert by_id["xai"].endpoint == "https://status.x.ai/feed.xml"
     assert by_id["xai"].kind == "rss"
-    assert by_id["deepseek"].endpoint == "https://deepseek.statuspage.io/history.atom"
-    assert by_id["deepseek"].kind == "rss"
+    assert by_id["deepseek"].endpoint == "https://status.deepseek.com/api/status-page/6410630422455"
+    assert by_id["deepseek"].kind == "flashduty"
+    assert by_id["gemini_developer"].kind == "aistudio"
+    assert by_id["gemini_developer"].status_url == "https://aistudio.google.com/status"
     assert by_id["deepseek"].status_url == "https://status.deepseek.com/"
     assert by_id["moonshot"].endpoint == "https://status.moonshot.cn"
     assert by_id["moonshot"].kind == "statuspage"

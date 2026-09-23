@@ -14,6 +14,7 @@ from data.plugins.astrbot_plugin_global_status.renderer import (
     _format_overview_date,
     _svg_icon,
     _text_width,
+    _vendor_icon,
     _wrap_text,
     build_alert_fallback,
     normalize_card_theme,
@@ -21,6 +22,7 @@ from data.plugins.astrbot_plugin_global_status.renderer import (
     render_overview,
 )
 from data.plugins.astrbot_plugin_global_status.sources import (
+    BUILTIN_SOURCES,
     Issue,
     SourceResult,
     SourceSpec,
@@ -52,21 +54,7 @@ def test_render_alert_card_returns_valid_dynamic_png():
 
 def test_svg_icon_assets_rasterize_without_native_dependencies():
     expected = {
-        "openai",
-        "claude",
-        "google_vertex_gemini",
-        "groq",
-        "cohere",
-        "moonshot",
-        "minimax",
-        "xai",
-        "deepseek",
-        "cursor",
-        "cerebras",
-        "aws",
-        "azure",
-        "github",
-        "cloudflare",
+        *(spec.source_id for spec in BUILTIN_SOURCES),
         "vendor",
         "alert",
         "update",
@@ -83,6 +71,54 @@ def test_svg_icon_assets_rasterize_without_native_dependencies():
         assert icon.mode == "RGBA"
         assert icon.size == (48, 48)
         assert icon.getbbox() is not None
+
+
+def test_builtin_sources_use_dedicated_vendor_icons():
+    for spec in BUILTIN_SOURCES:
+        assert _vendor_icon(spec.source_id) == spec.source_id
+    assert _vendor_icon("custom_vendor") == "vendor"
+    assert _svg_icon("gemini_developer", 48).tobytes() != _svg_icon(
+        "google_vertex_gemini", 48
+    ).tobytes()
+
+
+def test_overview_sorts_vendors_case_insensitively_without_mutating_input(monkeypatch):
+    vendors = [
+        ("xai", "xAI"),
+        ("cohere", "cohere"),
+        ("vercel", "Vercel"),
+        ("aws", "Amazon Web Services"),
+    ]
+    results = [
+        SourceResult(SourceSpec(key, name, "statuspage", "", ""), True)
+        for key, name in vendors
+    ]
+    rendered = []
+
+    def capture_vendor_icon(source_id):
+        rendered.append(source_id)
+        return _vendor_icon(source_id)
+
+    monkeypatch.setattr(
+        "data.plugins.astrbot_plugin_global_status.renderer._vendor_icon",
+        capture_vendor_icon,
+    )
+    render_overview(results)
+    assert rendered == ["aws", "cohere", "vercel", "xai"]
+    assert [result.spec.source_id for result in results] == [key for key, _ in vendors]
+
+
+def test_new_vendor_icons_render_in_all_themes():
+    source_ids = {"vercel", "fireworks", "novita", "openrouter", "gemini_developer"}
+    results = [
+        SourceResult(spec, True)
+        for spec in BUILTIN_SOURCES
+        if spec.source_id in source_ids
+    ]
+    for theme_name in CARD_THEMES:
+        image = Image.open(BytesIO(render_overview(results, card_theme=theme_name)))
+        assert image.format == "PNG"
+        assert image.width == 1200
 
 
 def test_event_times_use_the_configured_image_timezone():
