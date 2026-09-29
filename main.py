@@ -84,7 +84,7 @@ class GlobalStatusMonitor(star.Star):
         self._session = aiohttp.ClientSession(
             timeout=timeout,
             trust_env=True,
-            headers={"User-Agent": "AstrBot-Global-Status-Monitor/1.0"},
+            headers={"User-Agent": "AstrBot-Global-Status-Monitor/1.2.1"},
         )
         self._maybe_start_monitor()
 
