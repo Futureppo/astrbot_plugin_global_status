@@ -13,7 +13,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 from xml.etree import ElementTree
 
-from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 from PIL import (
     Image,
     ImageChops,
@@ -23,6 +22,8 @@ from PIL import (
     ImageFilter,
     ImageFont,
 )
+
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from .sources import Issue, SourceResult
 from .translation import normalize_language
@@ -917,16 +918,14 @@ def _paint_glass_backdrop(image: Image.Image, height: int) -> None:
     # 柔和彩色光场：中等饱和的粉彩色，重模糊后成平滑渐变，供玻璃折射
     blobs = [
         (120, int(height * 0.08), 360, (140, 180, 235, 120)),  # 淡蓝（左上）
-        (1080, int(height * 0.15), 340, (200, 165, 225, 110)), # 淡紫（右上）
-        (600, int(height * 0.48), 400, (165, 205, 200, 95)),   # 淡薄荷（中）
+        (1080, int(height * 0.15), 340, (200, 165, 225, 110)),  # 淡紫（右上）
+        (600, int(height * 0.48), 400, (165, 205, 200, 95)),  # 淡薄荷（中）
         (180, int(height * 0.88), 360, (235, 180, 175, 110)),  # 淡桃（左下）
-        (1020, int(height * 0.82), 340, (180, 200, 235, 100)), # 淡蓝紫（右下）
-        (620, int(height * 0.92), 300, (225, 200, 165, 90)),   # 淡金（底中）
+        (1020, int(height * 0.82), 340, (180, 200, 235, 100)),  # 淡蓝紫（右下）
+        (620, int(height * 0.92), 300, (225, 200, 165, 90)),  # 淡金（底中）
     ]
     for cx, cy, radius, color in blobs:
-        draw.ellipse(
-            (cx - radius, cy - radius, cx + radius, cy + radius), fill=color
-        )
+        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=color)
     layer = layer.filter(ImageFilter.GaussianBlur(65))
     image.alpha_composite(layer)
 
@@ -1579,13 +1578,21 @@ def render_overview(
         if not result.success or not result.complete:
             if not primary_lines:
                 primary_lines = _wrap_text(
-                    "Current status cannot be confirmed" if language == "en-US"
-                    else "数据不完整，无法确认当前状态", _font(21, True), 370, 2,
+                    "Current status cannot be confirmed"
+                    if language == "en-US"
+                    else "数据不完整，无法确认当前状态",
+                    _font(21, True),
+                    370,
+                    2,
                 )
             last_success = result.last_success_at or "never"
             original_lines = _wrap_text(
-                f"Last success: {last_success}" if language == "en-US"
-                else f"最后成功采集：{last_success}", _font(16), 370, 2,
+                f"Last success: {last_success}"
+                if language == "en-US"
+                else f"最后成功采集：{last_success}",
+                _font(16),
+                370,
+                2,
             )
         row_height = max(
             96,

@@ -413,8 +413,11 @@ def parse_statuspage(
             if not component.get("id") or not component.get("status"):
                 raise ValueError("Component id and status are required")
         status = summary.get("status")
-        if (not isinstance(status, dict) or not isinstance(status.get("indicator"), str)
-                or not status["indicator"].strip()):
+        if (
+            not isinstance(status, dict)
+            or not isinstance(status.get("indicator"), str)
+            or not status["indicator"].strip()
+        ):
             raise ValueError("summary.status.indicator is missing")
         _statuspage_incidents(summary.get("incidents", []))
         _statuspage_incidents(summary.get("scheduled_maintenances", []))
@@ -432,8 +435,11 @@ def parse_statuspage(
         raise ValueError("; ".join(errors))
 
     result = SourceResult(
-        spec, True, complete=not errors,
-        history_complete=incidents_payload is not None, error="; ".join(errors),
+        spec,
+        True,
+        complete=not errors,
+        history_complete=incidents_payload is not None,
+        error="; ".join(errors),
     )
     candidates = list((incidents_payload or {}).get("incidents", []))
     candidates.extend((summary or {}).get("incidents", []))
@@ -452,7 +458,10 @@ def parse_statuspage(
     for incident_id, incident in merged.items():
         status = str(incident["status"]).lower()
         maintenance = incident.get("impact") == "maintenance" or status in {
-            "scheduled", "in_progress", "verifying", "completed",
+            "scheduled",
+            "in_progress",
+            "verifying",
+            "completed",
         }
         if maintenance and not notify_maintenance:
             continue
@@ -469,25 +478,37 @@ def parse_statuspage(
         resolved_at = str(incident.get("resolved_at") or "")
         if resolved and not resolved_at:
             resolution_updates = [
-                x for x in incident.get("incident_updates", [])
+                x
+                for x in incident.get("incident_updates", [])
                 if x.get("status") in {"resolved", "completed"}
             ]
             resolved_at = max(
-                (str(x.get("display_at") or x.get("created_at") or "")
-                 for x in resolution_updates), default="",
+                (
+                    str(x.get("display_at") or x.get("created_at") or "")
+                    for x in resolution_updates
+                ),
+                default="",
             )
         issue = Issue(
-            source_id=spec.source_id, source_name=spec.name,
-            issue_id=f"incident_{incident_id}", severity=severity,
+            source_id=spec.source_id,
+            source_name=spec.name,
+            issue_id=f"incident_{incident_id}",
+            severity=severity,
             title=str(incident["name"]).strip(),
-            affected_services=tuple(dict.fromkeys(
-                str(x["name"]) for x in components if x.get("name")
-            )),
+            affected_services=tuple(
+                dict.fromkeys(str(x["name"]) for x in components if x.get("name"))
+            ),
             detail=clean_text(update.get("body") or incident.get("body")),
-            updated_at=str(update.get("updated_at") or update.get("created_at")
-                           or incident.get("updated_at") or ""),
+            updated_at=str(
+                update.get("updated_at")
+                or update.get("created_at")
+                or incident.get("updated_at")
+                or ""
+            ),
             status_url=str(incident.get("shortlink") or spec.status_url),
-            started_at=str(incident.get("started_at") or incident.get("created_at") or ""),
+            started_at=str(
+                incident.get("started_at") or incident.get("created_at") or ""
+            ),
             resolved_at=resolved_at,
         )
         record_issue(result, issue, resolved)
@@ -501,15 +522,25 @@ def parse_statuspage(
             continue
         status = str(component["status"]).lower()
         severity = _status_severity(status)
-        if severity == "operational" or (severity == "maintenance" and not notify_maintenance):
+        if severity == "operational" or (
+            severity == "maintenance" and not notify_maintenance
+        ):
             continue
-        entries.append((str(component.get("name") or component["id"]),
-                        status.replace("_", " "), str(component.get("updated_at", ""))))
+        entries.append(
+            (
+                str(component.get("name") or component["id"]),
+                status.replace("_", " "),
+                str(component.get("updated_at", "")),
+            )
+        )
         if SEVERITY_RANK[severity] > SEVERITY_RANK[worst]:
             worst = severity
     if entries:
         issue = Issue(
-            spec.source_id, spec.name, "components", worst,
+            spec.source_id,
+            spec.name,
+            "components",
+            worst,
             "Component status degradation",
             affected_services=tuple(name for name, _, _ in entries),
             detail="; ".join(f"{name}: {status}" for name, status, _ in entries),
@@ -520,12 +551,18 @@ def parse_statuspage(
     overall = (summary or {}).get("status", {})
     description = str(overall.get("description", ""))
     severity = _status_severity(str(overall.get("indicator", "none")))
-    if not result.issues and severity != "operational" and (
-        notify_maintenance or "maintenance" not in description.lower()
+    if (
+        not result.issues
+        and severity != "operational"
+        and (notify_maintenance or "maintenance" not in description.lower())
     ):
         issue = Issue(
-            spec.source_id, spec.name, "overall", severity,
-            description or "Service status degradation", detail=description,
+            spec.source_id,
+            spec.name,
+            "overall",
+            severity,
+            description or "Service status degradation",
+            detail=description,
             updated_at=str((summary or {}).get("page", {}).get("updated_at", "")),
             status_url=spec.status_url,
         )
@@ -539,27 +576,47 @@ def parse_google_cloud(spec: SourceSpec, payload: list[Any]) -> SourceResult:
     for incident in object_list(payload, "Google incidents"):
         if not incident.get("id") or not incident.get("external_desc"):
             raise ValueError("Google incident id and external_desc are required")
-        products = object_list(incident.get("affected_products", []), "affected_products")
+        products = object_list(
+            incident.get("affected_products", []), "affected_products"
+        )
         names = [str(x["title"]) for x in products if x.get("title")]
-        searchable = " ".join([str(incident.get("service_name", "")),
-                               str(incident["external_desc"]), *names]).lower()
-        if not any(term in searchable for term in ("vertex ai", "vertex gemini", "gemini")):
+        searchable = " ".join(
+            [
+                str(incident.get("service_name", "")),
+                str(incident["external_desc"]),
+                *names,
+            ]
+        ).lower()
+        if not any(
+            term in searchable for term in ("vertex ai", "vertex gemini", "gemini")
+        ):
             continue
         latest = incident.get("most_recent_update")
         if not isinstance(latest, dict) or not latest.get("status"):
             raise ValueError("Google most_recent_update.status is required")
         resolved = bool(incident.get("end")) or latest["status"] == "AVAILABLE"
         impact = str(incident.get("status_impact") or latest["status"]).lower()
-        severe = impact in {"high", "critical"} or any(x in impact for x in ("outage", "disruption"))
+        severe = impact in {"high", "critical"} or any(
+            x in impact for x in ("outage", "disruption")
+        )
         severity = "critical" if severe else "warning"
         if impact in {"low", "information", "service_information"}:
             severity = "info"
-        updated_at = str(latest.get("modified") or latest.get("created")
-                         or incident.get("modified") or "")
+        updated_at = str(
+            latest.get("modified")
+            or latest.get("created")
+            or incident.get("modified")
+            or ""
+        )
         issue = Issue(
-            spec.source_id, spec.name, f"incident_{incident['id']}", severity,
-            str(incident["external_desc"]), affected_services=tuple(dict.fromkeys(names)),
-            detail=clean_text(latest.get("text")), updated_at=updated_at,
+            spec.source_id,
+            spec.name,
+            f"incident_{incident['id']}",
+            severity,
+            str(incident["external_desc"]),
+            affected_services=tuple(dict.fromkeys(names)),
+            detail=clean_text(latest.get("text")),
+            updated_at=updated_at,
             status_url=spec.status_url,
             started_at=str(incident.get("begin") or incident.get("created") or ""),
             resolved_at=str(incident.get("end") or (updated_at if resolved else "")),
@@ -604,7 +661,9 @@ def _rss_issue_id(guid: str, link: str, title: str) -> str:
 
 
 def parse_rss(
-    spec: SourceSpec, xml_text: str, notify_maintenance: bool,
+    spec: SourceSpec,
+    xml_text: str,
+    notify_maintenance: bool,
 ) -> SourceResult:
     """Parse valid RSS/Atom and preserve explicit resolutions, never infer them from absence."""
     try:
@@ -627,50 +686,100 @@ def parse_rss(
         title = _xml_child_text(element, "title")
         if not title:
             raise ValueError("Feed entry title is missing")
-        raw = (_xml_child_text(element, "description") or
-               _xml_child_text(element, "content") or _xml_child_text(element, "summary"))
+        raw = (
+            _xml_child_text(element, "description")
+            or _xml_child_text(element, "content")
+            or _xml_child_text(element, "summary")
+        )
         description = clean_text(raw)
         guid = _xml_child_text(element, "guid") or _xml_child_text(element, "id")
         link = _xml_child_text(element, "link")
         if not link:
-            link = next((
-                x.attrib.get("href", "").strip() for x in element
-                if x.tag.rsplit("}", 1)[-1].lower() == "link"
-                and x.attrib.get("rel", "alternate").lower() == "alternate"
-            ), "")
-        published = (_xml_child_text(element, "updated") or
-                     _xml_child_text(element, "pubDate") or _xml_child_text(element, "published"))
-        categories = tuple((
-            "".join(x.itertext()).strip() or x.attrib.get("term", "").strip()
-        ).lower() for x in element if x.tag.rsplit("}", 1)[-1].lower() == "category")
+            link = next(
+                (
+                    x.attrib.get("href", "").strip()
+                    for x in element
+                    if x.tag.rsplit("}", 1)[-1].lower() == "link"
+                    and x.attrib.get("rel", "alternate").lower() == "alternate"
+                ),
+                "",
+            )
+        published = (
+            _xml_child_text(element, "updated")
+            or _xml_child_text(element, "pubDate")
+            or _xml_child_text(element, "published")
+        )
+        categories = tuple(
+            ("".join(x.itertext()).strip() or x.attrib.get("term", "").strip()).lower()
+            for x in element
+            if x.tag.rsplit("}", 1)[-1].lower() == "category"
+        )
         incident_match = re.search(r"/incidents/([^/?#]+)", link, re.IGNORECASE)
-        issue_id = (f"incident_{incident_match.group(1)}"
-                    if element_name == "entry" and incident_match else _rss_issue_id(guid, link, title))
-        candidate = (parse_timestamp(published), title, description, published, link, categories, raw)
+        issue_id = (
+            f"incident_{incident_match.group(1)}"
+            if element_name == "entry" and incident_match
+            else _rss_issue_id(guid, link, title)
+        )
+        candidate = (
+            parse_timestamp(published),
+            title,
+            description,
+            published,
+            link,
+            categories,
+            raw,
+        )
         if issue_id not in newest or candidate[0] >= newest[issue_id][0]:
             newest[issue_id] = candidate
 
     result = SourceResult(spec, True)
-    for issue_id, (_, title, description, published, link, categories, raw) in newest.items():
+    for issue_id, (
+        _,
+        title,
+        description,
+        published,
+        link,
+        categories,
+        raw,
+    ) in newest.items():
         combined = f"{title} {description}".lower()
-        maintenance = any(x in combined for x in (
-            "scheduled maintenance", "planned maintenance", "计划维护", "预定维护",
-        ))
+        maintenance = any(
+            x in combined
+            for x in (
+                "scheduled maintenance",
+                "planned maintenance",
+                "计划维护",
+                "预定维护",
+            )
+        )
         if maintenance and not notify_maintenance:
             continue
-        structured_status = set(categories) & {"investigating", "identified", "monitoring", "resolved"}
+        structured_status = set(categories) & {
+            "investigating",
+            "identified",
+            "monitoring",
+            "resolved",
+        }
         resolved = "resolved" in structured_status
         if not structured_status:
-            resolved = any(x in combined for x in (
-                "issue has been resolved", "incident has been resolved",
-                "service has returned to normal", "services have returned to normal",
-                "[resolved]", "已恢复", "已解决",
-            )) or bool(re.search(r"\bresolved:", combined))
+            resolved = any(
+                x in combined
+                for x in (
+                    "issue has been resolved",
+                    "incident has been resolved",
+                    "service has returned to normal",
+                    "services have returned to normal",
+                    "[resolved]",
+                    "已恢复",
+                    "已解决",
+                )
+            ) or bool(re.search(r"\bresolved:", combined))
         title_lower = title.lower()
         severity = "warning"
-        if (set(categories) & {"unavailable", "outage", "critical"} or any(
-            x in title_lower for x in ("disruption", "outage", "not available", "unavailable", "不可用")
-        )):
+        if set(categories) & {"unavailable", "outage", "critical"} or any(
+            x in title_lower
+            for x in ("disruption", "outage", "not available", "unavailable", "不可用")
+        ):
             severity = "critical"
         if maintenance:
             severity = "maintenance"
@@ -680,10 +789,18 @@ def parse_rss(
         if resolved and match and parse_timestamp(match.group(1).strip()):
             resolved_at = match.group(1).strip()
         issue = Issue(
-            spec.source_id, spec.name, issue_id, severity, title,
-            detail=description, updated_at=published,
-            status_url=spec.status_url if spec.source_id == "deepseek" else link or spec.status_url,
-            started_at=published, resolved_at=resolved_at,
+            spec.source_id,
+            spec.name,
+            issue_id,
+            severity,
+            title,
+            detail=description,
+            updated_at=published,
+            status_url=spec.status_url
+            if spec.source_id == "deepseek"
+            else link or spec.status_url,
+            started_at=published,
+            resolved_at=resolved_at,
         )
         record_issue(result, issue, resolved)
     return result
@@ -724,7 +841,9 @@ async def _request_json(session: aiohttp.ClientSession, url: str) -> Any:
 
 
 async def fetch_source(
-    session: aiohttp.ClientSession, spec: SourceSpec, notify_maintenance: bool,
+    session: aiohttp.ClientSession,
+    spec: SourceSpec,
+    notify_maintenance: bool,
     history_hours: int = 24,
 ) -> SourceResult:
     """Fetch one source with a deadline and independent current/history failure handling."""
@@ -732,19 +851,29 @@ async def fetch_source(
     try:
         async with asyncio.timeout(50):
             if spec.kind == "statuspage":
-                urls = [f"{spec.endpoint.rstrip('/')}/api/v2/{name}.json"
-                        for name in ("summary", "incidents")]
+                urls = [
+                    f"{spec.endpoint.rstrip('/')}/api/v2/{name}.json"
+                    for name in ("summary", "incidents")
+                ]
                 payloads = await asyncio.gather(
-                    *(_request_json(session, url) for url in urls), return_exceptions=True,
+                    *(_request_json(session, url) for url in urls),
+                    return_exceptions=True,
                 )
                 for value in payloads:
                     if isinstance(value, asyncio.CancelledError):
                         raise value
-                errors = [f"{urlparse(url).path}: {source_error(value)}"
-                          for url, value in zip(urls, payloads) if isinstance(value, BaseException)]
+                errors = [
+                    f"{urlparse(url).path}: {source_error(value)}"
+                    for url, value in zip(urls, payloads)
+                    if isinstance(value, BaseException)
+                ]
                 try:
                     result = parse_statuspage(
-                        spec, *(None if isinstance(x, BaseException) else x for x in payloads),
+                        spec,
+                        *(
+                            None if isinstance(x, BaseException) else x
+                            for x in payloads
+                        ),
                         notify_maintenance,
                     )
                 except ValueError as exc:
@@ -752,28 +881,48 @@ async def fetch_source(
                 if errors:
                     result.error = "; ".join(filter(None, [result.error, *errors]))
             elif spec.kind == "google":
-                result = parse_google_cloud(spec, await _request_json(session, spec.endpoint))
+                result = parse_google_cloud(
+                    spec, await _request_json(session, spec.endpoint)
+                )
             elif spec.kind == "rss":
-                result = parse_rss(spec, await _request_text(session, spec.endpoint), notify_maintenance)
+                result = parse_rss(
+                    spec,
+                    await _request_text(session, spec.endpoint),
+                    notify_maintenance,
+                )
             elif spec.kind == "datadog":
                 from .datadog_status import parse_datadog
 
-                result = parse_datadog(spec, await _request_json(session, spec.endpoint), notify_maintenance)
+                result = parse_datadog(
+                    spec,
+                    await _request_json(session, spec.endpoint),
+                    notify_maintenance,
+                )
             elif spec.kind == "betterstack":
                 from .betterstack import parse_betterstack
 
-                result = parse_betterstack(spec, await _request_json(session, spec.endpoint), notify_maintenance)
+                result = parse_betterstack(
+                    spec,
+                    await _request_json(session, spec.endpoint),
+                    notify_maintenance,
+                )
             elif spec.kind in {"flashduty", "aistudio"}:
                 from .modern_sources import fetch_modern_source
 
-                result = await fetch_modern_source(spec, notify_maintenance, history_hours)
+                result = await fetch_modern_source(
+                    spec, notify_maintenance, history_hours
+                )
             else:
                 raise ValueError(f"Unsupported source kind: {spec.kind}")
     except asyncio.CancelledError:
         raise
     except Exception as exc:
         result = SourceResult(
-            spec, False, error=source_error(exc), complete=False, history_complete=False,
+            spec,
+            False,
+            error=source_error(exc),
+            complete=False,
+            history_complete=False,
         )
     result.fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
     if result.error:
@@ -782,10 +931,15 @@ async def fetch_source(
 
 
 async def fetch_all_sources(
-    session: aiohttp.ClientSession, specs: list[SourceSpec], notify_maintenance: bool,
+    session: aiohttp.ClientSession,
+    specs: list[SourceSpec],
+    notify_maintenance: bool,
     history_hours: int = 24,
 ) -> list[SourceResult]:
     """Fetch enabled sources concurrently; cancellation remains owned by the caller."""
     return await asyncio.gather(
-        *(fetch_source(session, spec, notify_maintenance, history_hours) for spec in specs)
+        *(
+            fetch_source(session, spec, notify_maintenance, history_hours)
+            for spec in specs
+        )
     )

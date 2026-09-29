@@ -60,14 +60,20 @@ def _flash_changes(value: Any) -> list[dict[str, Any]]:
 
 
 def parse_flashduty(
-    spec: SourceSpec, active: Any, history: Any, notify_maintenance: bool,
+    spec: SourceSpec,
+    active: Any,
+    history: Any,
+    notify_maintenance: bool,
 ) -> SourceResult:
     """Merge the live component snapshot with explicitly resolved historical events."""
     errors: list[str] = []
     try:
         current = _flash_data(active)
         page = current.get("page")
-        if not isinstance(page, dict) or page.get("custom_domain") != "status.deepseek.com":
+        if (
+            not isinstance(page, dict)
+            or page.get("custom_domain") != "status.deepseek.com"
+        ):
             raise ValueError("Unexpected FlashDuty page identity")
         object_list(page.get("components"), "FlashDuty components")
         active_items = _flash_changes(current.get("active_changes"))
@@ -84,7 +90,10 @@ def parse_flashduty(
     if active is None and history is None:
         raise ValueError("; ".join(errors))
     result = SourceResult(
-        spec, True, complete=not errors, history_complete=history is not None,
+        spec,
+        True,
+        complete=not errors,
+        history_complete=history is not None,
         error="; ".join(errors),
     )
     # The live endpoint wins ties and re-opened incidents over historical snapshots.
@@ -95,28 +104,47 @@ def parse_flashduty(
         maintenance = change.get("type") == "maintenance"
         if maintenance and not notify_maintenance:
             continue
-        components = object_list(change.get("affected_components", []), "affected_components")
+        components = object_list(
+            change.get("affected_components", []), "affected_components"
+        )
         updates = object_list(change.get("updates", []), "FlashDuty updates")
         latest = max(updates, key=lambda x: float(x["at_seconds"]), default={})
         resolved = change["status"] in {"resolved", "completed", "cancelled"}
         states = [str(x.get("status", "")) for x in components]
         if resolved:
-            states.extend(str(c.get("status", "")) for u in updates
-                          for c in u.get("component_changes", []))
-        severity = "critical" if any(x in {"partial_outage", "full_outage", "major_outage"}
-                                     for x in states) else "warning"
+            states.extend(
+                str(c.get("status", ""))
+                for u in updates
+                for c in u.get("component_changes", [])
+            )
+        severity = (
+            "critical"
+            if any(
+                x in {"partial_outage", "full_outage", "major_outage"} for x in states
+            )
+            else "warning"
+        )
         if maintenance:
             severity = "maintenance"
         started_at = _unix_iso(change.get("start_at_seconds"))
         updated_at = _unix_iso(latest["at_seconds"]) if latest else started_at
         closed = change.get("close_at_seconds")
         issue = Issue(
-            spec.source_id, spec.name, f"incident_{change_id}", severity,
+            spec.source_id,
+            spec.name,
+            f"incident_{change_id}",
+            severity,
             str(change["title"]),
-            affected_services=tuple(dict.fromkeys(str(x["name"]) for x in components if x.get("name"))),
+            affected_services=tuple(
+                dict.fromkeys(str(x["name"]) for x in components if x.get("name"))
+            ),
             detail=clean_text(latest.get("description") or change.get("description")),
-            updated_at=updated_at, status_url=spec.status_url, started_at=started_at,
-            resolved_at=(_unix_iso(closed) if closed else updated_at) if resolved else "",
+            updated_at=updated_at,
+            status_url=spec.status_url,
+            started_at=started_at,
+            resolved_at=(_unix_iso(closed) if closed else updated_at)
+            if resolved
+            else "",
         )
         record_issue(result, issue, resolved)
     return result
@@ -143,11 +171,19 @@ def parse_aistudio(spec: SourceSpec, payload: Any) -> SourceResult:
         if len(entry) < 6 or not entry[0] or not isinstance(entry[1], str):
             raise ValueError("Malformed AI Studio incident")
         updates, components = entry[3], entry[5]
-        if not isinstance(updates, list) or not updates or not isinstance(components, list):
+        if (
+            not isinstance(updates, list)
+            or not updates
+            or not isinstance(components, list)
+        ):
             raise ValueError("AI Studio updates and components are required")
         for update in updates:
-            if (not isinstance(update, list) or len(update) < 4
-                    or not isinstance(update[2], list) or not update[2]):
+            if (
+                not isinstance(update, list)
+                or len(update) < 4
+                or not isinstance(update[2], list)
+                or not update[2]
+            ):
                 raise ValueError("Malformed AI Studio update")
             _unix_iso(update[2][0])
         ordered = sorted(updates, key=lambda x: float(x[2][0]))
@@ -155,11 +191,20 @@ def parse_aistudio(spec: SourceSpec, payload: Any) -> SourceResult:
         resolved = latest[0] == 4
         severity = {0: "info", 1: "warning", 2: "critical"}.get(entry[2], "warning")
         issue = Issue(
-            spec.source_id, spec.name, f"incident_{entry[0]}", severity, entry[1],
-            affected_services=tuple(dict.fromkeys(component_names.get(x, f"Component {x}")
-                                                  for x in components)),
-            detail=clean_text(latest[3]), updated_at=_unix_iso(latest[2][0]),
-            status_url=spec.status_url, started_at=_unix_iso(ordered[0][2][0]),
+            spec.source_id,
+            spec.name,
+            f"incident_{entry[0]}",
+            severity,
+            entry[1],
+            affected_services=tuple(
+                dict.fromkeys(
+                    component_names.get(x, f"Component {x}") for x in components
+                )
+            ),
+            detail=clean_text(latest[3]),
+            updated_at=_unix_iso(latest[2][0]),
+            status_url=spec.status_url,
+            started_at=_unix_iso(ordered[0][2][0]),
             resolved_at=_unix_iso(latest[2][0]) if resolved else "",
         )
         record_issue(result, issue, resolved)
@@ -176,8 +221,9 @@ async def _request(client: Any, method: str, url: str, **kwargs: Any) -> str:
     """Do not expose request headers, frontend keys or proxy credentials in errors."""
     path = urlparse(url).path
     try:
-        response = await client.request(method, url, allow_redirects=False,
-                                        discard_cookies=True, **kwargs)
+        response = await client.request(
+            method, url, allow_redirects=False, discard_cookies=True, **kwargs
+        )
     except asyncio.CancelledError:
         raise
     except Exception as exc:
@@ -204,7 +250,9 @@ def public_frontend_keys(html: str) -> list[str]:
 
 
 async def fetch_modern_source(
-    spec: SourceSpec, notify_maintenance: bool, history_hours: int,
+    spec: SourceSpec,
+    notify_maintenance: bool,
+    history_hours: int,
 ) -> SourceResult:
     """Use isolated, short-lived browser TLS sessions without a browser or login state."""
     from curl_cffi.requests import AsyncSession
@@ -214,16 +262,21 @@ async def fetch_modern_source(
             now = int(datetime.now(UTC).timestamp())
             # Notification lookback is separate from retrieval; keep long incidents visible.
             days = max(90, min(168, history_hours) // 24)
-            urls = [f"{spec.endpoint}/summary/active",
-                    f"{spec.endpoint}/change/list?start_at_seconds={now - days * 86400}&end_at_seconds={now}"]
-            payloads = await asyncio.gather(*(_json(client, u) for u in urls), return_exceptions=True)
+            urls = [
+                f"{spec.endpoint}/summary/active",
+                f"{spec.endpoint}/change/list?start_at_seconds={now - days * 86400}&end_at_seconds={now}",
+            ]
+            payloads = await asyncio.gather(
+                *(_json(client, u) for u in urls), return_exceptions=True
+            )
             for value in payloads:
                 if isinstance(value, asyncio.CancelledError):
                     raise value
             errors = [source_error(x) for x in payloads if isinstance(x, BaseException)]
             try:
                 result = parse_flashduty(
-                    spec, *(None if isinstance(x, BaseException) else x for x in payloads),
+                    spec,
+                    *(None if isinstance(x, BaseException) else x for x in payloads),
                     notify_maintenance,
                 )
             except ValueError as exc:
@@ -234,11 +287,17 @@ async def fetch_modern_source(
         html = await _request(client, "GET", spec.endpoint)
         for key in public_frontend_keys(html):
             try:
-                text = await _request(client, "POST", AISTUDIO_RPC, data="[]", headers={
-                    "Content-Type": "application/json+protobuf",
-                    "X-Goog-Api-Key": key,
-                    "Referer": "https://aistudio.google.com/",
-                })
+                text = await _request(
+                    client,
+                    "POST",
+                    AISTUDIO_RPC,
+                    data="[]",
+                    headers={
+                        "Content-Type": "application/json+protobuf",
+                        "X-Goog-Api-Key": key,
+                        "Referer": "https://aistudio.google.com/",
+                    },
+                )
                 return parse_aistudio(spec, json.loads(text))
             except SourceHTTPError as exc:
                 if exc.status not in {401, 403}:

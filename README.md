@@ -2,7 +2,7 @@
 
 面向所有具备群聊和主动推送能力的 AstrBot 平台适配器的状态告警插件。插件轮询官方状态接口，在服务出现异常、异常信息更新或恢复时生成精美的 PNG 状态卡并推送到指定群。卡片图标全部来自插件内置 SVG 资产，运行时在内存中栅格化，不需要 Cairo 等原生依赖。
 
-当前版本：**1.2.1**。更新记录见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**1.2.2**。更新记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 图片示例
 
@@ -132,6 +132,19 @@
 - `history_lookback_hours` 默认 24，范围 0–168，0 关闭补报；首次或来源迁移只建立历史基线，不补发旧记录。补报依赖官方保留的历史和明确恢复时间，每源最多保留 200 条待补报、2000 条近期去重记录。
 - `notify_source_failures` 默认开启；连续 `source_failure_threshold` 次（默认 3）采集不完整会提醒，`source_failure_cooldown_seconds` 默认 3600。采集恢复另行通知，不代表厂商事故恢复。
 - 按目标分批发送、去重和失败重试；每张图最多 5 条，每轮每源/目标最多 20 条，其余后续轮次发送。最后成功采集时间和错误类型持久化，查询总览不改变投递状态。
+- 每次平台发送最多等待 30 秒，失败或超时后继续处理其他目标。发送前保存基线，每批成功后立即保存发送进度；重载后只重试尚未记录成功的目标。平台超时但实际已发送，或发送成功后、进度写入前进程崩溃，仍可能造成一次重复通知。
+
+## 开发验证
+
+在 AstrBot 项目根目录运行：
+
+```sh
+python -m pytest data/plugins/astrbot_plugin_global_status/tests -q -o addopts=
+ruff format data/plugins/astrbot_plugin_global_status
+ruff check data/plugins/astrbot_plugin_global_status
+```
+
+默认只运行本地测试，覆盖状态解析、首次基线、历史补报、多目标重试、发送中断恢复、超时、存储失败、图片和翻译降级。设置 `GLOBAL_STATUS_LIVE=1` 才启用官方公开状态接口测试；这些测试不向聊天会话发消息，也不调用翻译模型。Windows 测试样例显式使用 UTF-8 编码，无需修改系统编码。
 
 ## 图标
 

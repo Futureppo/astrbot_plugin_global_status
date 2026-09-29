@@ -8,6 +8,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import aiohttp
+
 from astrbot.api import AstrBotConfig, logger, star
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.message_components import Image, Plain
@@ -34,6 +35,7 @@ STATE_VERSION = 1
 TRANSLATION_CACHE_KEY = "translation_cache_v1"
 MAX_EVENTS_PER_CARD = 5
 MAX_EVENTS_PER_CYCLE = 20
+SEND_TIMEOUT_SECONDS = 30
 
 
 class GlobalStatusMonitor(star.Star):
@@ -84,7 +86,7 @@ class GlobalStatusMonitor(star.Star):
         self._session = aiohttp.ClientSession(
             timeout=timeout,
             trust_env=True,
-            headers={"User-Agent": "AstrBot-Global-Status-Monitor/1.2.1"},
+            headers={"User-Agent": "AstrBot-Global-Status-Monitor/1.2.2"},
         )
         self._maybe_start_monitor()
 
@@ -203,7 +205,9 @@ class GlobalStatusMonitor(star.Star):
                 bool(self.config.get("notify_maintenance", False)),
                 self._history_hours(),
             )
-            self._last_results = [presentation_result(result, self._state) for result in results]
+            self._last_results = [
+                presentation_result(result, self._state) for result in results
+            ]
             for result in results:
                 if not result.success or not result.complete:
                     logger.warning(
@@ -367,7 +371,8 @@ class GlobalStatusMonitor(star.Star):
             self._state["sources"].pop(source_id, None)
             health.pop(source_id, None)
         self._state["initialized_sources"] = [
-            source_id for source_id in self._state.get("initialized_sources", [])
+            source_id
+            for source_id in self._state.get("initialized_sources", [])
             if source_id in enabled_source_ids
         ]
         for delivered in self._state["deliveries"].values():
@@ -378,14 +383,18 @@ class GlobalStatusMonitor(star.Star):
     def _prune_removed_groups(self, groups: list[str]) -> None:
         allowed = set(groups)
         ledgers = [self._state["deliveries"]]
-        ledgers.extend(x.get("deliveries", {}) for x in self._state.get("health", {}).values())
+        ledgers.extend(
+            x.get("deliveries", {}) for x in self._state.get("health", {}).values()
+        )
         for deliveries in ledgers:
             for target_key in list(deliveries):
                 if target_key.rsplit("|", 1)[-1] not in allowed:
                     deliveries.pop(target_key, None)
 
     def _reconcile_source(
-        self, result: SourceResult, targets: dict[str, str],
+        self,
+        result: SourceResult,
+        targets: dict[str, str],
     ) -> dict[str, list[tuple[str, Issue]]]:
         """Reconcile active incidents and bounded catch-up without guessing recoveries."""
         return reconcile_source(self._state, result, targets, self._history_hours())
@@ -397,6 +406,17 @@ class GlobalStatusMonitor(star.Star):
         events: list[tuple[str, Issue]],
         translations: dict[str, str] | None = None,
     ) -> bool:
+        """Render one batch and bound the wait for its platform adapter.
+
+        Args:
+            unified_message_origin: Full destination session identifier.
+            source_name: Vendor name displayed on the card.
+            events: Incident stages and details to deliver.
+            translations: Prepared translations, or None to resolve them here.
+
+        Returns:
+            Whether the adapter reported success before the timeout.
+        """
         language = normalize_language(self.config.get("display_language", "bilingual"))
         if translations is None:
             translations = await self._translator.translate_issues(
@@ -433,7 +453,10 @@ class GlobalStatusMonitor(star.Star):
                 ]
             )
         try:
-            sent = await self.context.send_message(unified_message_origin, chain)
+            sent = await asyncio.wait_for(
+                self.context.send_message(unified_message_origin, chain),
+                timeout=SEND_TIMEOUT_SECONDS,
+            )
             if not sent:
                 logger.warning(
                     "No platform matched status alert target %s.",
@@ -465,14 +488,19 @@ class GlobalStatusMonitor(star.Star):
         cleanup_resolved(self._state, source_id, target_keys, has_configured_groups)
 
     @staticmethod
-    def _event_batches(events: list[tuple[str, Issue]]) -> list[list[tuple[str, Issue]]]:
+    def _event_batches(
+        events: list[tuple[str, Issue]],
+    ) -> list[list[tuple[str, Issue]]]:
         """Bound each image and drain large backlogs over subsequent cycles."""
         return [
-            events[offset:offset + MAX_EVENTS_PER_CARD]
-            for offset in range(0, min(len(events), MAX_EVENTS_PER_CYCLE), MAX_EVENTS_PER_CARD)
+            events[offset : offset + MAX_EVENTS_PER_CARD]
+            for offset in range(
+                0, min(len(events), MAX_EVENTS_PER_CYCLE), MAX_EVENTS_PER_CARD
+            )
         ]
 
     async def _run_cycle(self) -> None:
+        """Persist the baseline and each acknowledged batch before advancing."""
         results = await self._fetch_sources()
         successful_results = [result for result in results if result.success]
         self._prune_disabled_sources({result.spec.source_id for result in results})
@@ -498,6 +526,8 @@ class GlobalStatusMonitor(star.Star):
             initialized_sources.add(result.spec.source_id)
             reconciled.append((result, pending))
         self._state["initialized_sources"] = sorted(initialized_sources)
+        # Commit the baseline before external sends, including silent startup.
+        await self.put_kv_data(STATE_KEY, self._state)
 
         language = normalize_language(self.config.get("display_language", "bilingual"))
         changed_issues = [
@@ -517,10 +547,15 @@ class GlobalStatusMonitor(star.Star):
             for target_key, events in pending.items():
                 for batch in self._event_batches(events):
                     if not await self._send_events(
-                        targets[target_key], result.spec.name, batch, translations,
+                        targets[target_key],
+                        result.spec.name,
+                        batch,
+                        translations,
                     ):
                         break
                     self._mark_delivered(target_key, batch)
+                    # A reload during a later delivery must not replay this batch.
+                    await self.put_kv_data(STATE_KEY, self._state)
             self._cleanup_recoveries(
                 result.spec.source_id,
                 set(targets),
@@ -529,19 +564,27 @@ class GlobalStatusMonitor(star.Star):
         health_pending: dict[str, list[tuple[str, Issue]]] = {}
         for result in results:
             notices = plan_health_notices(
-                self._state, result, targets,
+                self._state,
+                result,
+                targets,
                 bool(self.config.get("notify_source_failures", True)),
                 self._bounded_int("source_failure_threshold", 3, 1, 100),
                 self._bounded_int("source_failure_cooldown_seconds", 3600, 60, 86400),
             )
             for target_key, events in notices.items():
                 health_pending.setdefault(target_key, []).extend(events)
+        await self.put_kv_data(STATE_KEY, self._state)
         for target_key, events in health_pending.items():
             for batch in self._event_batches(events):
-                if not await self._send_events(targets[target_key], "Status monitor", batch, {}):
+                if not await self._send_events(
+                    targets[target_key], "Status monitor", batch, {}
+                ):
                     break
                 mark_health_delivered(self._state, target_key, batch)
-        self._last_results = [presentation_result(result, self._state) for result in results]
+                await self.put_kv_data(STATE_KEY, self._state)
+        self._last_results = [
+            presentation_result(result, self._state) for result in results
+        ]
         await self.put_kv_data(STATE_KEY, self._state)
         if self._translator.dirty:
             await self.put_kv_data(
@@ -557,8 +600,10 @@ class GlobalStatusMonitor(star.Star):
     async def vendor_status(self, event: AstrMessageEvent):
         """Query all enabled vendor sources and return a current status image."""
         try:
-            results = [presentation_result(result, self._state)
-                       for result in await self._fetch_sources()]
+            results = [
+                presentation_result(result, self._state)
+                for result in await self._fetch_sources()
+            ]
             issues = [
                 issue
                 for result in results
@@ -597,9 +642,7 @@ class GlobalStatusMonitor(star.Star):
         """读取并清洗 group_whitelist；非列表或为空返回 []。"""
         return self._configured_groups()
 
-    def _subscription_entries_for_umo(
-        self, groups: list[str], umo: str
-    ) -> list[str]:
+    def _subscription_entries_for_umo(self, groups: list[str], umo: str) -> list[str]:
         """Return whitelist entries that resolve to the current unified origin."""
         return [
             entry

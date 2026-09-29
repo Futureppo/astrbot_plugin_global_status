@@ -13,7 +13,13 @@ from .sources import (
     parse_timestamp,
 )
 
-COMPONENT_STATES = {"operational", "maintenance", "degraded", "partial_outage", "major_outage"}
+COMPONENT_STATES = {
+    "operational",
+    "maintenance",
+    "degraded",
+    "partial_outage",
+    "major_outage",
+}
 
 
 def _components(value: Any, depth: int = 0) -> list[dict[str, Any]]:
@@ -37,7 +43,11 @@ def _incident(value: dict[str, Any], maintenance: bool) -> dict[str, Any]:
         raise ValueError("Datadog incident id, title and currentStatus are required")
     status = value["currentStatus"]
     resolved = status in {"resolved", "completed", "canceled"}
-    if not maintenance and isinstance(value.get("resolved"), bool) and value["resolved"] != resolved:
+    if (
+        not maintenance
+        and isinstance(value.get("resolved"), bool)
+        and value["resolved"] != resolved
+    ):
         raise ValueError("Contradictory Datadog resolution flags")
     affected = _components(value.get("componentsAffected", []))
     timeline = object_list(value.get("timeline", []), "Datadog timeline")
@@ -53,26 +63,56 @@ def _incident(value: dict[str, Any], maintenance: bool) -> dict[str, Any]:
         terminal = update_status in {"resolved", "completed", "canceled"}
         if terminal:
             resolution_dates.append(str(timestamp))
-        historical_states.extend(x["status"] for x in _components(update.get("componentsAffected", [])))
-        updates.append({"body": update.get("description", ""), "created_at": timestamp,
-                        "status": "completed" if maintenance and terminal else "resolved" if terminal else update_status})
+        historical_states.extend(
+            x["status"] for x in _components(update.get("componentsAffected", []))
+        )
+        updates.append(
+            {
+                "body": update.get("description", ""),
+                "created_at": timestamp,
+                "status": "completed"
+                if maintenance and terminal
+                else "resolved"
+                if terminal
+                else update_status,
+            }
+        )
     states = historical_states if resolved else [x["status"] for x in affected]
-    impact = "maintenance" if maintenance else "major" if "major_outage" in states else "minor"
-    resolved_at = str(value.get("completedDate" if maintenance else "resolvedDate") or "")
+    impact = (
+        "maintenance"
+        if maintenance
+        else "major"
+        if "major_outage" in states
+        else "minor"
+    )
+    resolved_at = str(
+        value.get("completedDate" if maintenance else "resolvedDate") or ""
+    )
     if resolved and not resolved_at:
         resolved_at = max(resolution_dates, key=parse_timestamp, default="")
     return {
-        "id": str(value["id"]), "name": value["title"],
-        "status": "completed" if maintenance and resolved else "resolved" if resolved else status,
-        "impact": impact, "components": affected,
+        "id": str(value["id"]),
+        "name": value["title"],
+        "status": "completed"
+        if maintenance and resolved
+        else "resolved"
+        if resolved
+        else status,
+        "impact": impact,
+        "components": affected,
         "created_at": value.get("startDate" if maintenance else "publishedDate", ""),
-        "updated_at": max((str(x["created_at"]) for x in updates), key=parse_timestamp, default=""),
-        "resolved_at": resolved_at if resolved else "", "incident_updates": updates,
+        "updated_at": max(
+            (str(x["created_at"]) for x in updates), key=parse_timestamp, default=""
+        ),
+        "resolved_at": resolved_at if resolved else "",
+        "incident_updates": updates,
         "body": value.get("description") or value.get("scheduledDescription", ""),
     }
 
 
-def parse_datadog(spec: SourceSpec, payload: Any, notify_maintenance: bool) -> SourceResult:
+def parse_datadog(
+    spec: SourceSpec, payload: Any, notify_maintenance: bool
+) -> SourceResult:
     """Normalize grouped components and incident timelines with independent validation."""
     if not isinstance(payload, dict) or not payload.get("id"):
         raise ValueError("Datadog status snapshot is missing")
@@ -80,8 +120,10 @@ def parse_datadog(spec: SourceSpec, payload: Any, notify_maintenance: bool) -> S
         raise ValueError("Unexpected Datadog status page identity")
     errors = []
     try:
-        summary = {"components": _components(payload.get("components")),
-                   "status": {"indicator": "none"}}
+        summary = {
+            "components": _components(payload.get("components")),
+            "status": {"indicator": "none"},
+        }
     except ValueError as exc:
         errors.append(str(exc))
         summary = None
@@ -91,14 +133,18 @@ def parse_datadog(spec: SourceSpec, payload: Any, notify_maintenance: bool) -> S
         for incident in object_list(payload.get("incidents"), "Datadog incidents"):
             incidents.append(_incident(incident, False))
         if notify_maintenance:
-            for maintenance in object_list(payload.get("maintenances") or [], "Datadog maintenance"):
+            for maintenance in object_list(
+                payload.get("maintenances") or [], "Datadog maintenance"
+            ):
                 incidents.append(_incident(maintenance, True))
     except ValueError as exc:
         errors.append(str(exc))
         history_complete = False
     if summary is None and not history_complete:
         raise ValueError("; ".join(errors))
-    result = parse_statuspage(spec, summary, {"incidents": incidents}, notify_maintenance)
+    result = parse_statuspage(
+        spec, summary, {"incidents": incidents}, notify_maintenance
+    )
     if errors:
         result.complete = False
         result.history_complete = history_complete

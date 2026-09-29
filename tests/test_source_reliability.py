@@ -14,14 +14,29 @@ from data.plugins.astrbot_plugin_global_status.sources import (
     parse_statuspage,
 )
 
-SPEC = SourceSpec("vendor", "Vendor", "statuspage", "https://status.test", "https://status.test/")
+SPEC = SourceSpec(
+    "vendor", "Vendor", "statuspage", "https://status.test", "https://status.test/"
+)
 HEALTHY = {"components": [], "status": {"indicator": "none"}, "incidents": []}
-ACTIVE = {"id": "one", "name": "API outage", "status": "investigating", "impact": "critical",
-          "updated_at": "2026-09-20T10:00:00Z", "incident_updates": [], "components": []}
+ACTIVE = {
+    "id": "one",
+    "name": "API outage",
+    "status": "investigating",
+    "impact": "critical",
+    "updated_at": "2026-09-20T10:00:00Z",
+    "incident_updates": [],
+    "components": [],
+}
 
 
-@pytest.mark.parametrize("summary,history", [({}, {}), ({"error": "denied"}, {"error": "denied"}),
-                                             ({"components": []}, {"incidents": {}})])
+@pytest.mark.parametrize(
+    "summary,history",
+    [
+        ({}, {}),
+        ({"error": "denied"}, {"error": "denied"}),
+        ({"components": []}, {"incidents": {}}),
+    ],
+)
 def test_invalid_objects_do_not_mean_healthy(summary, history):
     with pytest.raises(ValueError):
         parse_statuspage(SPEC, summary, history, False)
@@ -41,20 +56,30 @@ def test_partial_empty_snapshot_is_unknown_not_healthy():
 
 def test_summary_and_history_merge_by_update_time_without_duplicate_recovery():
     resolved = {**ACTIVE, "status": "resolved", "updated_at": "2026-09-20T09:00:00Z"}
-    result = parse_statuspage(SPEC, {**HEALTHY, "incidents": [ACTIVE]}, {"incidents": [resolved]}, False)
+    result = parse_statuspage(
+        SPEC, {**HEALTHY, "incidents": [ACTIVE]}, {"incidents": [resolved]}, False
+    )
     assert len(result.issues) == 1 and not result.resolved_issue_ids
     resolved["updated_at"] = "2026-09-20T11:00:00Z"
-    result = parse_statuspage(SPEC, {**HEALTHY, "incidents": [ACTIVE]}, {"incidents": [resolved]}, False)
+    result = parse_statuspage(
+        SPEC, {**HEALTHY, "incidents": [ACTIVE]}, {"incidents": [resolved]}, False
+    )
     assert not result.issues and result.resolved_issue_ids == {"incident_one"}
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failed", ["summary", "incidents"])
-async def test_fetch_preserves_successful_half_and_logs_exception_type(monkeypatch, failed):
+async def test_fetch_preserves_successful_half_and_logs_exception_type(
+    monkeypatch, failed
+):
     async def request(session, url):
         if url.endswith(f"/{failed}.json"):
             raise TimeoutError()
-        return {**HEALTHY, "incidents": [ACTIVE]} if "summary" in url else {"incidents": [ACTIVE]}
+        return (
+            {**HEALTHY, "incidents": [ACTIVE]}
+            if "summary" in url
+            else {"incidents": [ACTIVE]}
+        )
 
     monkeypatch.setattr(sources, "_request_json", request)
     result = await fetch_source(None, SPEC, False)
@@ -85,7 +110,15 @@ async def test_fetch_cancels_all_sibling_requests(monkeypatch):
     assert sorted(entered) == sorted(finished)
 
 
-@pytest.mark.parametrize("xml", ["<html><body>Unavailable</body></html>", "<rss/>", "<feed><entry/></feed>", "oops"])
+@pytest.mark.parametrize(
+    "xml",
+    [
+        "<html><body>Unavailable</body></html>",
+        "<rss/>",
+        "<feed><entry/></feed>",
+        "oops",
+    ],
+)
 def test_rss_rejects_error_pages_and_malformed_entries(xml):
     with pytest.raises(ValueError):
         parse_rss(SPEC, xml, False)
@@ -109,14 +142,19 @@ def test_structured_active_rss_status_overrides_old_resolution_text():
     assert parse_rss(SPEC, xml, False).issues
 
 
-@pytest.mark.parametrize("payload", [[{}], {"error": "denied"}, [{"id": "one", "external_desc": "Vertex AI"}]])
+@pytest.mark.parametrize(
+    "payload",
+    [[{}], {"error": "denied"}, [{"id": "one", "external_desc": "Vertex AI"}]],
+)
 def test_google_shape_errors_are_not_silently_skipped(payload):
     with pytest.raises(ValueError):
         parse_google_cloud(SPEC, payload)
 
 
 def test_real_minimax_short_incident_preserves_resolved_content():
-    payload = json.loads((Path(__file__).parent / "fixtures/minimax.json").read_text())
+    payload = json.loads(
+        (Path(__file__).parent / "fixtures/minimax.json").read_text(encoding="utf-8")
+    )
     result = parse_statuspage(SPEC, HEALTHY, payload, False)
     issue = result.resolved_issues["incident_mtkn3r6kwk1g"]
     assert issue.detail == "该问题已解决。"
@@ -126,13 +164,20 @@ def test_real_minimax_short_incident_preserves_resolved_content():
 
 def test_builtin_source_inventory_keeps_windows_additions_and_official_links():
     by_id = {x.source_id: x for x in BUILTIN_SOURCES}
-    assert {"cursor", "cerebras", "gemini_developer", "google_vertex_gemini"} <= set(by_id)
+    assert {"cursor", "cerebras", "gemini_developer", "google_vertex_gemini"} <= set(
+        by_id
+    )
     assert "statuspage.io" not in by_id["deepseek"].endpoint
     assert by_id["azure"].endpoint.startswith("https://rssfeed.azure.status.microsoft/")
     assert by_id["vercel"].kind == "statuspage"
     assert by_id["vercel"].endpoint == "https://www.vercel-status.com"
-    assert not any(x.source_id == "vercel" for x in sources.build_source_specs({"vercel": False}, []))
-    schema = json.loads((Path(__file__).parents[1] / "_conf_schema.json").read_text())
+    assert not any(
+        x.source_id == "vercel"
+        for x in sources.build_source_specs({"vercel": False}, [])
+    )
+    schema = json.loads(
+        (Path(__file__).parents[1] / "_conf_schema.json").read_text(encoding="utf-8")
+    )
     assert schema["sources"]["items"]["vercel"]["default"] is True
 
 

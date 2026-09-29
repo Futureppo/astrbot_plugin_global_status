@@ -14,15 +14,26 @@ MAX_CATCHUPS = 200
 def _issues(raw: Any) -> dict[str, Issue]:
     if not isinstance(raw, dict):
         return {}
-    return {key: Issue.from_dict(value) for key, value in raw.items() if isinstance(value, dict)}
+    return {
+        key: Issue.from_dict(value)
+        for key, value in raw.items()
+        if isinstance(value, dict)
+    }
 
 
 def delivery_fingerprint(stage: str, issue: Issue) -> str:
-    return f"recovered:{issue.fingerprint}" if stage in {"recovered", "missed"} else issue.fingerprint
+    return (
+        f"recovered:{issue.fingerprint}"
+        if stage in {"recovered", "missed"}
+        else issue.fingerprint
+    )
 
 
 def reconcile_source(
-    state: dict[str, Any], result: SourceResult, targets: dict[str, str], lookback_hours: int,
+    state: dict[str, Any],
+    result: SourceResult,
+    targets: dict[str, str],
+    lookback_hours: int,
 ) -> dict[str, list[tuple[str, Issue]]]:
     """Require explicit incident resolution and baseline history before catch-up."""
     source = state["sources"].setdefault(result.spec.source_id, {})
@@ -36,7 +47,9 @@ def reconcile_source(
     seen = source.get("history_seen", {})
     if not isinstance(seen, dict):
         seen = {}
-    seen = {key: value for key, value in seen.items() if parse_timestamp(value) >= cutoff}
+    seen = {
+        key: value for key, value in seen.items() if parse_timestamp(value) >= cutoff
+    }
     baseline = parse_timestamp(source.get("history_baseline_at"))
     generation_changed = source.get("history_source") != result.spec.kind
     baseline_ready = bool(baseline) and not generation_changed
@@ -69,7 +82,12 @@ def reconcile_source(
         for key, issue in result.resolved_issues.items():
             if key in current:
                 continue
-            if key not in seen and key not in previous and key not in recoveries and eligible(issue):
+            if (
+                key not in seen
+                and key not in previous
+                and key not in recoveries
+                and eligible(issue)
+            ):
                 catchups[key] = issue
             if cutoff <= parse_timestamp(issue.resolved_at) <= now:
                 seen[key] = issue.resolved_at
@@ -78,14 +96,23 @@ def reconcile_source(
             source["history_source"] = result.spec.kind
         source["history_cursor_at"] = result.fetched_at
 
-    catchups = {key: issue for key, issue in catchups.items()
-                if lookback_hours > 0 and parse_timestamp(issue.resolved_at) >= cutoff}
-    catchups = dict(sorted(catchups.items(), key=lambda x: parse_timestamp(x[1].resolved_at))[-MAX_CATCHUPS:])
+    catchups = {
+        key: issue
+        for key, issue in catchups.items()
+        if lookback_hours > 0 and parse_timestamp(issue.resolved_at) >= cutoff
+    }
+    catchups = dict(
+        sorted(catchups.items(), key=lambda x: parse_timestamp(x[1].resolved_at))[
+            -MAX_CATCHUPS:
+        ]
+    )
     ordered_seen = sorted(seen.items(), key=lambda x: parse_timestamp(x[1]))
     if len(ordered_seen) > MAX_HISTORY_RECORDS:
         # Evicted IDs remain outside the catch-up window instead of becoming new again.
         evicted_until = ordered_seen[-MAX_HISTORY_RECORDS - 1][1]
-        if parse_timestamp(evicted_until) > parse_timestamp(source.get("history_floor_at")):
+        if parse_timestamp(evicted_until) > parse_timestamp(
+            source.get("history_floor_at")
+        ):
             source["history_floor_at"] = evicted_until
     source["history_seen"] = dict(ordered_seen[-MAX_HISTORY_RECORDS:])
     for key, issue in original_catchups.items():
@@ -102,8 +129,15 @@ def reconcile_source(
     source["unconfirmed"] = unconfirmed
     if unconfirmed:
         result.complete = False
-        result.error = "; ".join(filter(None, [result.error,
-            f"Resolution not confirmed for {len(unconfirmed)} retained event(s)"]))
+        result.error = "; ".join(
+            filter(
+                None,
+                [
+                    result.error,
+                    f"Resolution not confirmed for {len(unconfirmed)} retained event(s)",
+                ],
+            )
+        )
 
     pending: dict[str, list[tuple[str, Issue]]] = {}
     for target in targets:
@@ -115,7 +149,13 @@ def reconcile_source(
                 continue
             fingerprint = delivered.get(issue.key)
             if fingerprint != issue.fingerprint:
-                stage = "new" if key not in previous else "current" if fingerprint is None else "update"
+                stage = (
+                    "new"
+                    if key not in previous
+                    else "current"
+                    if fingerprint is None
+                    else "update"
+                )
                 events.append((stage, issue))
         for key, issue in recoveries.items():
             fingerprint = delivered.get(issue.key)
@@ -137,7 +177,9 @@ def reconcile_source(
     return pending
 
 
-def cleanup_resolved(state: dict[str, Any], source_id: str, targets: set[str], configured: bool) -> None:
+def cleanup_resolved(
+    state: dict[str, Any], source_id: str, targets: set[str], configured: bool
+) -> None:
     """Keep failed-target deliveries pending; retain bounded seen IDs after cleanup."""
     if configured and not targets:
         return
@@ -146,15 +188,22 @@ def cleanup_resolved(state: dict[str, Any], source_id: str, targets: set[str], c
         records = source.get(field, {})
         for key, issue in _issues(records).items():
             expected = delivery_fingerprint("recovered", issue)
-            if all(state["deliveries"].get(target, {}).get(issue.key) == expected for target in targets):
+            if all(
+                state["deliveries"].get(target, {}).get(issue.key) == expected
+                for target in targets
+            ):
                 records.pop(key, None)
                 for delivered in state["deliveries"].values():
                     delivered.pop(issue.key, None)
 
 
 def plan_health_notices(
-    state: dict[str, Any], result: SourceResult, targets: dict[str, str],
-    enabled: bool, threshold: int, cooldown: int,
+    state: dict[str, Any],
+    result: SourceResult,
+    targets: dict[str, str],
+    enabled: bool,
+    threshold: int,
+    cooldown: int,
 ) -> dict[str, list[tuple[str, Issue]]]:
     """Only successful deliveries advance the per-target notice cooldown."""
     health = state.setdefault("health", {}).setdefault(result.spec.source_id, {})
@@ -183,37 +232,62 @@ def plan_health_notices(
         else:
             if health["consecutive_failures"] < threshold:
                 continue
-            if delivery.get("active") and now - parse_timestamp(delivery.get("sent_at")) < cooldown:
+            if (
+                delivery.get("active")
+                and now - parse_timestamp(delivery.get("sent_at")) < cooldown
+            ):
                 continue
             stage = "source_unavailable"
             title = f"{result.spec.name}：监控数据不可用 / Source data unavailable"
-            detail = (f"连续不完整采集 / Consecutive failures: {health['consecutive_failures']}\n"
-                      f"最后成功 / Last success: {health.get('last_success_at') or 'never'}\n"
-                      f"{health['last_error']}")
-        issue = Issue(result.spec.source_id, result.spec.name, "__source_health__",
-                      "info" if healthy else "unavailable", title, detail=detail,
-                      updated_at=result.fetched_at, status_url=result.spec.status_url)
+            detail = (
+                f"连续不完整采集 / Consecutive failures: {health['consecutive_failures']}\n"
+                f"最后成功 / Last success: {health.get('last_success_at') or 'never'}\n"
+                f"{health['last_error']}"
+            )
+        issue = Issue(
+            result.spec.source_id,
+            result.spec.name,
+            "__source_health__",
+            "info" if healthy else "unavailable",
+            title,
+            detail=detail,
+            updated_at=result.fetched_at,
+            status_url=result.spec.status_url,
+        )
         pending[target] = [(stage, issue)]
     return pending
 
 
-def mark_health_delivered(state: dict[str, Any], target: str, events: list[tuple[str, Issue]]) -> None:
+def mark_health_delivered(
+    state: dict[str, Any], target: str, events: list[tuple[str, Issue]]
+) -> None:
     for stage, issue in events:
         state["health"][issue.source_id].setdefault("deliveries", {})[target] = {
-            "active": stage == "source_unavailable", "sent_at": issue.updated_at,
+            "active": stage == "source_unavailable",
+            "sent_at": issue.updated_at,
         }
 
 
 def presentation_result(result: SourceResult, state: dict[str, Any]) -> SourceResult:
     """Show retained issues as unconfirmed, without mutating notification state."""
     previous = _issues(state["sources"].get(result.spec.source_id, {}).get("issues"))
-    retained = {key: issue for key, issue in previous.items()
-                if key not in result.issues and key not in result.resolved_issue_ids
-                and not (key in {"components", "overall"} and result.complete and result.success)}
+    retained = {
+        key: issue
+        for key, issue in previous.items()
+        if key not in result.issues
+        and key not in result.resolved_issue_ids
+        and not (
+            key in {"components", "overall"} and result.complete and result.success
+        )
+    }
     error = result.error
     if retained and not error:
         error = f"Resolution not confirmed for {len(retained)} retained event(s)"
     health = state.get("health", {}).get(result.spec.source_id, {})
-    return replace(result, issues={**retained, **result.issues},
-                   complete=result.complete and not retained, error=error,
-                   last_success_at=health.get("last_success_at", ""))
+    return replace(
+        result,
+        issues={**retained, **result.issues},
+        complete=result.complete and not retained,
+        error=error,
+        last_success_at=health.get("last_success_at", ""),
+    )

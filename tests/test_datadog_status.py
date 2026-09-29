@@ -11,7 +11,9 @@ ROOT = Path(__file__).parents[1]
 
 
 def data():
-    return json.loads((ROOT / "tests/fixtures/openrouter.json").read_text())
+    return json.loads(
+        (ROOT / "tests/fixtures/openrouter.json").read_text(encoding="utf-8")
+    )
 
 
 def test_openrouter_real_snapshot_uses_effective_dates_not_import_dates():
@@ -43,8 +45,15 @@ def test_openrouter_active_incident_and_unordered_timeline():
 
 def test_openrouter_maintenance_is_opt_in():
     payload = data()
-    payload["maintenances"] = [{"id": "planned", "title": "Maintenance", "currentStatus": "scheduled",
-                                "scheduledDescription": "Planned work", "startDate": "2026-10-01T00:00:00Z"}]
+    payload["maintenances"] = [
+        {
+            "id": "planned",
+            "title": "Maintenance",
+            "currentStatus": "scheduled",
+            "scheduledDescription": "Planned work",
+            "startDate": "2026-10-01T00:00:00Z",
+        }
+    ]
     assert not parse_datadog(SPEC, payload, False).issues
     result = parse_datadog(SPEC, payload, True)
     assert result.issues["incident_planned"].severity == "maintenance"
@@ -65,7 +74,7 @@ def test_openrouter_rejects_unrecognized_snapshot(payload):
 
 
 def test_builtin_readme_table_matches_configured_sources():
-    readme = (ROOT / "README.md").read_text()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
     section = readme.split("## 内置来源", 1)[1].split("\n## ", 1)[0]
     rows = [line for line in section.splitlines() if line.startswith("| ")]
     assert rows[:2] == ["| 来源 | 官方状态页 |", "| --- | --- |"]
